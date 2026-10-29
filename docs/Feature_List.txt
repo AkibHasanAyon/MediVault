@@ -1,0 +1,112 @@
+MediVault
+│
+├── Patient App
+│   ├── Family Health Manager
+│   │   ├── Multiple profiles under one account
+│   │   ├── Per-member documents, logs, prescriptions
+│   │   └── Unified family notification dashboard
+│   │
+│   ├── Daily Health Log
+│   │   ├── Blood glucose (fasting / post-meal / bedtime)
+│   │   ├── Blood pressure (systolic / diastolic)
+│   │   ├── Weight & heart rate
+│   │   └── Symptom notes
+│   │
+│   ├── Document Manager
+│   │   ├── Upload via camera or PDF
+│   │   ├── OCR + AI entity extraction
+│   │   └── Timeline view
+│   │
+│   ├── Medications
+│   │   ├── Auto-extracted from prescriptions
+│   │   ├── Daily take reminders
+│   │   └── Refill alerts
+│   │
+│   ├── Smart Appointment Memory
+│   │   ├── Follow-up tracking
+│   │   └── Reminder escalation (2.5 months → 1 week → due)
+│   │
+│   ├── Pre-Appointment Summary
+│   │   ├── 3-question intake (concern / symptoms / side effects)
+│   │   ├── AI synthesis of recent logs + documents
+│   │   └── Shareable brief for doctor
+│   │
+│   ├── Ask AI
+│   │   ├── About my records (RAG over documents + logs)
+│   │   └── General health education (LLM, Bangla + English)
+│   │
+│   ├── Monthly Health Report
+│   │   ├── Auto-generated on 1st of each month
+│   │   ├── Glucose / BP / weight trends
+│   │   ├── Medication adherence %
+│   │   ├── AI summary paragraph
+│   │   └── Downloadable PDF + shareable link
+│   │
+│   └── Danger Alerts
+│       ├── Hypoglycemia (< 3.9 mmol/L)
+│       ├── Hyperglycemia (> 16 mmol/L)
+│       └── Hypertensive crisis (> 180/120)
+│
+├── Doctor App
+│   ├── Patient Registry
+│   │   ├── Search by name or phone
+│   │   └── Full visit history per patient
+│   │
+│   ├── Today's Queue
+│   │   └── Live sync with assistant app
+│   │
+│   ├── QR Consultation Handshake
+│   │   ├── Patient shares time-limited QR
+│   │   └── Doctor gets instant read-only history
+│   │
+│   ├── AI Pre-Consultation Brief
+│   │   ├── 90-day glucose / BP averages
+│   │   ├── Active medications
+│   │   └── Flagged anomalies
+│   │
+│   ├── Digital Prescription Writer
+│   │   ├── Write inside app
+│   │   ├── Drug interaction checker
+│   │   └── Auto-sent to patient + extracted into their record
+│   │
+│   ├── Lab Result Notifications
+│   │   └── Alert when patient uploads ordered test
+│   │
+│   ├── Follow-up Due List
+│   │   └── Patients overdue for next visit
+│   │
+│   └── Generate Patient Report
+│       └── On-demand PDF for any patient
+│
+├── Assistant App
+│   ├── Today's Appointment List
+│   │   ├── Pre-booked appointments
+│   │   └── Walk-in registrations
+│   │
+│   ├── Queue Management
+│   │   ├── Token number assignment
+│   │   ├── Mark called in / done / no-show
+│   │   └── Estimated wait time display
+│   │
+│   ├── SMS Token Notification
+│   │   └── Patient receives serial + wait time via SMS
+│   │
+│   └── End-of-Day Summary
+│       └── Total seen / no-shows / avg wait time
+│
+└── Shared Bridge Layer
+    ├── QR Consultation Handshake
+    │   └── Time-limited, read-only patient history share
+    │
+    ├── Digital Prescription Loop
+    │   ├── Doctor writes → patient notified
+    │   ├── Auto-extracted into patient record
+    │   └── Medication reminders auto-set
+    │
+    ├── Lab Result Flow
+    │   ├── Doctor orders → patient reminded
+    │   ├── Patient uploads → doctor notified
+    │   └── Both see result in shared timeline
+    │
+    └── Real-time Queue Sync
+        └── WebSocket — assistant, doctor, patient in sync

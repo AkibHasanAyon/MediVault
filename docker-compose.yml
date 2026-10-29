@@ -1,0 +1,176 @@
+services:
+  # ----------------------------------------------------
+  # 1. Django Web API & Channels ASGI Server (Daphne)
+  # ----------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: daphne -b 0.0.0.0 -p 8000 config.asgi:application
+    volumes:
+      - ./backend:/app
+      - media_volume:/app/media
+      - static_volume:/app/static
+      - logs_volume:/app/logs
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.development
+      - DATABASE_URL=postgres://medivault_user:medivault_secret@postgres:5432/medivault_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    networks:
+      - medivault_network
+
+  # ----------------------------------------------------
+  # 2. Celery Worker (Async OCR, AI Extraction & Tasks)
+  # ----------------------------------------------------
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A config worker -l INFO -c 4
+    volumes:
+      - ./backend:/app
+      - media_volume:/app/media
+      - logs_volume:/app/logs
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.development
+      - DATABASE_URL=postgres://medivault_user:medivault_secret@postgres:5432/medivault_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - medivault_network
+
+  # ----------------------------------------------------
+  # 3. Celery Beat (Periodic Monthly Reports & Reminders)
+  # ----------------------------------------------------
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A config beat -l INFO
+    volumes:
+      - ./backend:/app
+      - logs_volume:/app/logs
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.development
+      - DATABASE_URL=postgres://medivault_user:medivault_secret@postgres:5432/medivault_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - medivault_network
+
+  # ----------------------------------------------------
+  # 4. PostgreSQL 16 Relational Database
+  # ----------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: medivault_db
+      POSTGRES_USER: medivault_user
+      POSTGRES_PASSWORD: medivault_secret
+    volumes:
+      - pgdata_volume:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medivault_user -d medivault_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - medivault_network
+
+  # ----------------------------------------------------
+  # 5. Redis 7 (Caching, Channels & Celery Broker)
+  # ----------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata_volume:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - medivault_network
+
+  # ----------------------------------------------------
+  # 6. ChromaDB (Vector Store for RAG Q&A)
+  # ----------------------------------------------------
+  chromadb:
+    image: chromadb/chroma:latest
+    restart: always
+    volumes:
+      - chromadata_volume:/chroma/chroma
+    ports:
+      - "8001:8000"
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+      - ANONYMIZED_TELEMETRY=FALSE
+    networks:
+      - medivault_network
+
+  # ----------------------------------------------------
+  # 7. React.js Frontend Prototype (Vite Dev Server)
+  # ----------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api/v1
+      - VITE_WS_BASE_URL=ws://localhost:8000/ws
+    depends_on:
+      - backend
+    networks:
+      - medivault_network
+
+networks:
+  medivault_network:
+    driver: bridge
+
+volumes:
+  pgdata_volume:
+  redisdata_volume:
+  chromadata_volume:
+  media_volume:
+  static_volume:
+  logs_volume:
+

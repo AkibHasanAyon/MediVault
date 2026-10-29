@@ -1,0 +1,53 @@
+Project Title: MediVault: An AI-Powered Personal Health Record and Patient–Doctor 
+Communication Platform 
+
+Motivation: 
+The healthcare system in Bangladesh is often fragmented across doctors, hospitals, diagnostic 
+centers, and paper-based records. A patient may visit several doctors over the years, receive 
+prescriptions from different providers, complete tests at different diagnostic centers, and keep 
+reports as paper documents or photographs on a phone. There is usually no simple way to bring all 
+of this information together when it is actually needed. 
+This becomes especially difficult when a patient visits a new doctor. The doctor may have only a 
+few minutes to understand the patient's condition, while the patient is expected to remember 
+previous diagnoses, medications, test results, allergies, and other important details. Even when the 
+information exists, finding the right document, understanding it, and comparing it with older 
+records can be difficult. 
+MediVault is a unified web and mobile platform for managing and sharing personal medical 
+information, with role-based access to patients, doctors, and clinic assistants. The system will 
+The idea behind MediVault comes from trying to solve this everyday gap. Instead of treating 
+medical documents as files that are simply stored, the system aims to turn them into an organized 
+and usable health history. Patients can upload their prescriptions and reports, understand and 
+search their own records using natural language, and securely share relevant information with 
+doctors. Doctors, in turn, can get a clearer view of a patient's previous history without depending 
+entirely on memory or scattered paper documents. 
+The goal of MediVault is not to replace doctors or make medical decisions, but to make the 
+information surrounding a patient's care more organized, accessible, and useful for both patients 
+and healthcare professionals in Bangladesh. 
+
+Project Description: 
+allow different users to access features according to their roles while working with the same 
+underlying patient and clinic data. 
+Patients will be able to upload or photograph prescriptions, laboratory reports, diagnostic reports, 
+and discharge summaries. The documents will go through an OCR and text-processing pipeline to 
+extract information such as medications, dosages, diagnoses, test results, and dates. The extracted 
+information will be stored in a structured database, while the document text will also be indexed 
+for semantic search. Patients will be able to maintain daily health records such as blood glucose, 
+blood pressure, weight, and heart rate, and view these values over time. A document-based 
+question-answering feature will allow patients to search and ask questions about their own medical 
+records in Bangla or English. The system will also include family health management, 
+appointment and follow-up reminders, pre-appointment summaries, and periodic health reports. 
+Doctors will have role-specific access to patient information that has been shared with them. They 
+will be able to review relevant medical history, previous reports, medications, and selected health 
+trends during a consultation. Doctors will also be able to create digital prescriptions, which will be 
+added to the patient's record. 
+Clinic assistants will use the platform to manage appointments and the daily patient queue. They 
+will be able to register walk-in patients, assign token numbers, update queue status, and monitor 
+waiting times. Queue updates will be reflected in the doctor's interface in real time so that both the 
+assistant and doctor have the same current information. 
+The platform will use role-based authentication and authorization to control access to patient and 
+clinic information. A secure sharing mechanism will allow patients to provide temporary access to 
+their records during a consultation. The system will use a relational database for structured medical 
+data and a vector database for document retrieval, with a retrieval-based question-answering 
+component for queries over patient records. The overall system will focus on organizing, 
+retrieving, and sharing existing medical information and will not be used for diagnosis or 
+independent medical decision-making.
