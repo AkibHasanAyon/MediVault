@@ -416,11 +416,55 @@ class ClinicQueueConsumer(AsyncWebsocketConsumer):
 
 ---
 
-## 10. Verification & Quality Gates
+## 10. Phase 9: Testing, Security Hardening & Production Audit (Weeks 13–14)
+
+### Step 10.1: Pytest Test Suite Configuration (`backend/pytest.ini`)
+```ini
+[pytest]
+DJANGO_SETTINGS_MODULE = config.settings.development
+python_files = tests.py test_*.py *_tests.py
+addopts = --reuse-db --nomigrations --cov=apps --cov-report=html --cov-report=term-missing
+```
+
+### Step 10.2: Model Factory Example (`backend/tests/factories.py`)
+```python
+import factory
+from apps.accounts.models import User
+from apps.patients.models import PatientProfile
+from apps.health_logs.models import BloodGlucoseLog
+
+class UserFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = User
+    phone_number = factory.Sequence(lambda n: f'+8801710{n:06d}')
+    email = factory.LazyAttribute(lambda o: f'{o.phone_number.replace("+", "")}@example.com')
+    full_name = "Test Patient"
+    role = User.Role.PATIENT
+    is_phone_verified = True
+
+class PatientProfileFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PatientProfile
+    user = factory.SubFactory(UserFactory)
+    allergies = "None reported"
+
+class BloodGlucoseLogFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = BloodGlucoseLog
+    patient = factory.SubFactory(PatientProfileFactory)
+    glucose_value_mmol = 5.4
+    context = BloodGlucoseLog.MeasurementContext.FASTING
+```
+
+---
+
+## 11. Verification & Quality Gates
 
 Each phase requires passing specific quality gates before proceeding:
 1. **Model Check:** `python manage.py check --deploy` passes with 0 critical warnings.
 2. **Migration Sanity:** `python manage.py makemigrations --check` detects no unstaged model changes.
 3. **Test Suite:** `pytest` passes with `> 80%` test coverage on all serializers and permission classes.
 4. **Linting:** `flake8` on backend and `npm run lint` on frontend pass with 0 errors.
+5. **WebSocket Verification:** Channels consumers pass asynchronous tests via `WebsocketCommunicator`.
+6. **Task Verification:** Celery tasks execute without unhandled exceptions in eager test mode.
 

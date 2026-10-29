@@ -156,6 +156,13 @@ docker compose up --build -d
 
 ---
 
+## 📋 Implementation Roadmap & Live Progress Tracker
+
+For step-by-step task execution, active phase status, and live engineering progress, see:
+👉 [**TODO.md**](./TODO.md) — Master living checklist tracking all 10 phases and 70 granular engineering tasks.
+
+---
+
 ## 📖 Complete Documentation Index
 
 All detailed specifications are located in the [`docs/`](./docs/) directory:
