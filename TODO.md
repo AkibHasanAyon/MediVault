@@ -11,10 +11,10 @@
 
 | Metric | Status |
 |---|---|
-| **Overall Project Completion** | **12%** (`1 / 9 Phases Complete` · `8 / 64 Tasks Done`) |
-| **Current Active Phase** | **Phase 2: Core Data Models & Database Migrations (Weeks 2–3)** |
+| **Overall Project Completion** | **22%** (`2 / 9 Phases Complete` · `16 / 64 Tasks Done`) |
+| **Current Active Phase** | **Phase 3: Document Processing & OCR Pipeline (Weeks 3–4)** |
 | **Messaging Channel Mode** | `MESSAGING_BACKEND=email` (Zero-cost SMTP dev mode) |
-| **Next Actionable Task** | `T2.1: Common Base Model & Soft Deletion` |
+| **Next Actionable Task** | `T3.1: Document Upload ViewSet & Format Validation` |
 
 ### 🗺️ 9-Phase Roadmap Alignment
 
@@ -23,7 +23,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
 | Phase | Guide Section | Focus & Core Deliverables | Timeline | Tasks | Status |
 |:---:|---|---|:---:|:---:|:---:|
 | **1** | [Section 2](#phase-1-foundation-infrastructure--authentication-weeks-12) | Docker, Django 5 Scaffolding, Custom User, JWT, Swagger, SMTP Dispatcher | Weeks 1–2 | 8 | `COMPLETED` ✅ |
-| **2** | [Section 3](#phase-2-core-data-models--database-migrations-weeks-23) | 11 Domain Apps, Base Models, Foreign Keys, Physiological Limits, Initial Migrations | Weeks 2–3 | 8 | `PENDING` |
+| **2** | [Section 3](#phase-2-core-data-models--database-migrations-weeks-23) | 11 Domain Apps, Base Models, Foreign Keys, Physiological Limits, Initial Migrations | Weeks 2–3 | 8 | `COMPLETED` ✅ |
 | **3** | [Section 4](#phase-3-document-processing--ocr-pipeline-weeks-34) | Upload API, Celery Workers, GCP Vision OCR, GPT-4o-mini Extraction, ChromaDB Index | Weeks 3–4 | 7 | `PENDING` |
 | **4** | [Section 5](#phase-4-health-monitoring--danger-alert-system-weeks-45) | Vitals CRUD, Danger Alerts (Hypo/Hyper/Crisis OR), Meds Schedule & Adherence | Weeks 4–5 | 8 | `PENDING` |
 | **5** | [Section 6](#phase-5-ai-clinical-intelligence-rag--monthly-reports-weeks-57) | ChromaDB RAG, Bilingual Bangla/English "Ask AI", Pre-Intake, 10-Sec Brief, WeasyPrint PDF | Weeks 5–7 | 7 | `PENDING` |
@@ -105,13 +105,13 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
 
 **Implementation Guide Reference:** [docs/Implementation.md § 3](file:///c:/Users/User/Desktop/Medivault%20resources/MediVault/docs/Implementation.md#3-phase-2-core-data-models--migrations-weeks-23)
 
-- [ ] **Task 2.1: Common Base Model & Soft Deletion**
+- [x] **Task 2.1: Common Base Model & Soft Deletion**
   - Implement `TimeStampedUUIDModel` (`id UUID`, `created_at`, `updated_at`).
   - Implement soft deletion manager and queryset filters.
   - *Target Files:* `backend/apps/common/models.py`
   - *Verification:* Unit test confirms soft-deleted instances are excluded from standard `.objects.all()` queries.
 
-- [ ] **Task 2.2: User Profiles (Patients, Doctors, Clinics, Assistants)**
+- [x] **Task 2.2: User Profiles (Patients, Doctors, Clinics, Assistants)**
   - `PatientProfile`: DOB/age, gender, blood group, allergies (text, default "None reported"), emergency contact.
   - `DoctorProfile`: BM&DC registration number, qualifications, specialties, bio, chamber address, is_verified.
   - `Clinic`: Name, address, phone, geolocation coordinates, license.
@@ -119,13 +119,13 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/patients/models.py`, `backend/apps/doctors/models.py`, `backend/apps/clinics/models.py`
   - *Verification:* Signals auto-create profile on User creation based on `user.role`.
 
-- [ ] **Task 2.3: Family Member Profiles**
+- [x] **Task 2.3: Family Member Profiles**
   - `FamilyMember`: Foreign key to `PatientProfile`, relation (`PARENT`, `SPOUSE`, `CHILD`, `OTHER`), name, DOB, blood group.
   - Enforce constraint: Maximum 8 family profiles per master account.
   - *Target Files:* `backend/apps/patients/models.py`
   - *Verification:* Attempting to save a 9th family member raises validation error.
 
-- [ ] **Task 2.4: Daily Health Logs (Vitals)**
+- [x] **Task 2.4: Daily Health Logs (Vitals)**
   - `BloodGlucoseLog`: `glucose_value_mmol`, meal context (`FASTING`, `POST_MEAL`, `BEDTIME`, `RANDOM`), timestamp, `is_danger`.
   - `BloodPressureLog`: `systolic_mmHg`, `diastolic_mmHg`, `pulse_bpm`, timestamp, `is_danger`.
   - `WeightLog`: `weight_kg`, calculated BMI.
@@ -134,13 +134,13 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/health_logs/models.py`, `backend/apps/health_logs/validators.py`
   - *Verification:* Migrations apply; inserting out-of-bound vital values triggers `ValidationError`.
 
-- [ ] **Task 2.5: Medical Documents & Extracted Entities**
+- [x] **Task 2.5: Medical Documents & Extracted Entities**
   - `MedicalDocument`: Patient FK, family member FK (optional), file path, document type (`PRESCRIPTION`, `LAB_REPORT`, `DISCHARGE_SUMMARY`, `OTHER`), document date, status (`UPLOADED`, `PROCESSING_OCR`, `EXTRACTION_COMPLETE`, `FAILED`).
   - `DocumentEntity`: Document FK, entity category (`MEDICATION`, `LAB_TEST`, `DIAGNOSIS`), raw text, normalized name, numerical value, unit, reference range, confidence score.
   - *Target Files:* `backend/apps/documents/models.py`
   - *Verification:* Composite indexes on `[patient, document_date]` created in PostgreSQL.
 
-- [ ] **Task 2.6: Prescriptions & Medication Reminders**
+- [x] **Task 2.6: Prescriptions & Medication Reminders**
   - `Prescription`: Doctor FK, Patient FK, chamber name, clinical notes, diagnosis tags.
   - `PrescriptionMedication`: Brand name, generic name, strength, dosage form, schedule pattern (`1+0+1`), instructions, duration.
   - `Medication`: Active patient medication roster (verified vs unverified provenance flag).
@@ -149,13 +149,13 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/prescriptions/models.py`, `backend/apps/medications/models.py`
   - *Verification:* Schema correctly establishes FK relationship between prescriptions and patient reminders.
 
-- [ ] **Task 2.7: Appointments & Chamber Queue Models**
+- [x] **Task 2.7: Appointments & Chamber Queue Models**
   - `Appointment`: Patient FK, Doctor FK, Clinic FK, scheduled date, slot time, status (`SCHEDULED`, `COMPLETED`, `CANCELLED`, `NO_SHOW`).
   - `QueueEntry`: Clinic FK, Doctor FK, Appointment FK (optional), serial token (`A-001`), arrival timestamp, status (`WAITING`, `IN_CONSULTATION`, `DONE`, `SKIPPED`), estimated wait minutes.
   - *Target Files:* `backend/apps/appointments/models.py`
   - *Verification:* Unique constraint on `[clinic, doctor, scheduled_date, serial_number]` enforced.
 
-- [ ] **Task 2.8: Scoped Sharing & Consultation Handshake**
+- [x] **Task 2.8: Scoped Sharing & Consultation Handshake**
   - `ConsultationShare`: Patient FK, Doctor FK (nullable until claimed), token hash (SHA-256), scope array (`permitted_document_ids`, `permitted_metric_types`), `is_active`, `expires_at` (strict 30-min default).
   - `ShareAuditLog`: Share FK, Doctor FK, IP address, user agent, accessed timestamp, action.
   - *Target Files:* `backend/apps/sharing/models.py`
@@ -594,7 +594,8 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
 |---|:---:|:---:|---|---|
 | 2026-10-29 19:40 | Setup | All | Re-synchronized TODO.md to 100% 1-to-1 match docs/Implementation.md (9 Phases) | Antigravity AI |
 | 2026-10-29 19:57 | 1 | T1.1–T1.8 | Completed Phase 1: Foundation, Infrastructure, Custom User, Unified Messaging & JWT Auth (5/5 tests passing) | Antigravity AI |
-| *Upcoming* | 2 | T2.1 | Implement Common Base Model & Soft Deletion | — |
+| 2026-10-29 22:03 | 2 | T2.1–T2.8 | Completed Phase 2: All 11 domain models, migrations, signals, hard physiological limits & ERD constraints (13/13 tests passing) | Antigravity AI |
+| *Upcoming* | 3 | T3.1 | Implement Document Upload ViewSet & Format Validation | — |
 
 ---
 
