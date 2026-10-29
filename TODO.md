@@ -11,10 +11,10 @@
 
 | Metric | Status |
 |---|---|
-| **Overall Project Completion** | **22%** (`2 / 9 Phases Complete` · `16 / 64 Tasks Done`) |
-| **Current Active Phase** | **Phase 3: Document Processing & OCR Pipeline (Weeks 3–4)** |
+| **Overall Project Completion** | **33%** (`3 / 9 Phases Complete` · `23 / 64 Tasks Done`) |
+| **Current Active Phase** | **Phase 4: Health Monitoring & Danger Alert System (Weeks 4–5)** |
 | **Messaging Channel Mode** | `MESSAGING_BACKEND=email` (Zero-cost SMTP dev mode) |
-| **Next Actionable Task** | `T3.1: Document Upload ViewSet & Format Validation` |
+| **Next Actionable Task** | `T4.1: Blood Glucose Vitals API & Context Tagging` |
 
 ### 🗺️ 9-Phase Roadmap Alignment
 
@@ -24,7 +24,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
 |:---:|---|---|:---:|:---:|:---:|
 | **1** | [Section 2](#phase-1-foundation-infrastructure--authentication-weeks-12) | Docker, Django 5 Scaffolding, Custom User, JWT, Swagger, SMTP Dispatcher | Weeks 1–2 | 8 | `COMPLETED` ✅ |
 | **2** | [Section 3](#phase-2-core-data-models--database-migrations-weeks-23) | 11 Domain Apps, Base Models, Foreign Keys, Physiological Limits, Initial Migrations | Weeks 2–3 | 8 | `COMPLETED` ✅ |
-| **3** | [Section 4](#phase-3-document-processing--ocr-pipeline-weeks-34) | Upload API, Celery Workers, GCP Vision OCR, GPT-4o-mini Extraction, ChromaDB Index | Weeks 3–4 | 7 | `PENDING` |
+| **3** | [Section 4](#phase-3-document-processing--ocr-pipeline-weeks-34) | Upload API, Celery Workers, GCP Vision OCR, GPT-4o-mini Extraction, ChromaDB Index | Weeks 3–4 | 7 | `COMPLETED` ✅ |
 | **4** | [Section 5](#phase-4-health-monitoring--danger-alert-system-weeks-45) | Vitals CRUD, Danger Alerts (Hypo/Hyper/Crisis OR), Meds Schedule & Adherence | Weeks 4–5 | 8 | `PENDING` |
 | **5** | [Section 6](#phase-5-ai-clinical-intelligence-rag--monthly-reports-weeks-57) | ChromaDB RAG, Bilingual Bangla/English "Ask AI", Pre-Intake, 10-Sec Brief, WeasyPrint PDF | Weeks 5–7 | 7 | `PENDING` |
 | **6** | [Section 7](#phase-6-scoped-qr-consultation--digital-prescriptions-weeks-78) | 30-Min Ephemeral HMAC QR, Doctor Scanner, Digital Rx Canvas, Drug Interactions | Weeks 7–8 | 8 | `PENDING` |
@@ -167,14 +167,14 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
 
 **Implementation Guide Reference:** [docs/Implementation.md § 4](file:///c:/Users/User/Desktop/Medivault%20resources/MediVault/docs/Implementation.md#4-phase-3-document-processing-pipeline-weeks-34)
 
-- [ ] **Task 3.1: Document Upload ViewSet & Format Validation**
+- [x] **Task 3.1: Document Upload ViewSet & Format Validation**
   - Implement `POST /api/v1/documents/upload/` supporting JPEG, PNG, WebP, and multi-page PDF.
   - Inspect magic bytes (limit 10 MB per file); reject malicious file headers.
   - Store files under randomized UUID paths (`/media/documents/%Y/%m/<uuid>.<ext>`).
   - *Target Files:* `backend/apps/documents/validators.py`, `backend/apps/documents/views.py`
   - *Verification:* Uploading a 5 MB prescription image returns `202 Accepted` with `document_id`.
 
-- [ ] **Task 3.2: Asynchronous Celery OCR Task Pipeline**
+- [x] **Task 3.2: Asynchronous Celery OCR Task Pipeline**
   - Build `process_document_ocr_task(document_id)`:
     - Preprocess image (contrast enhancement, auto-rotation via Pillow).
     - Dispatch to Google Cloud Vision API `document_text_detection`.
@@ -183,14 +183,14 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/documents/tasks.py`, `backend/apps/documents/services/vision_service.py`
   - *Verification:* Upload sample prescription JPEG; verify raw text is extracted and saved to DB.
 
-- [ ] **Task 3.3: Google Cloud Vision API Client**
+- [x] **Task 3.3: Google Cloud Vision API Client**
   - Implement `OCRService` in `apps/ai_services/ocr_service.py`.
   - Handle rate limiting and retry with exponential backoff.
   - Support both Bengali and English handwriting detection.
   - *Target Files:* `backend/apps/ai_services/ocr_service.py`
   - *Verification:* Test OCR on Bangla diagnostic report; returns extracted Bangla and English strings.
 
-- [ ] **Task 3.4: OpenAI GPT-4o-mini Clinical Entity Parser**
+- [x] **Task 3.4: OpenAI GPT-4o-mini Clinical Entity Parser**
   - Construct strict JSON schema prompt instructing GPT-4o-mini to extract:
     - Medications (brand, generic, dosage, frequency, duration, instructions).
     - Lab tests (test name, observed numerical value, unit, reference range, abnormal flag).
@@ -199,20 +199,20 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/ai_services/openai_service.py`, `backend/apps/ai_services/prompts.py`
   - *Verification:* Extract from sample text; verify output parses strictly into Pydantic schema.
 
-- [ ] **Task 3.5: ChromaDB Semantic Vector Indexing**
+- [x] **Task 3.5: ChromaDB Semantic Vector Indexing**
   - Index OCR extracted text into ChromaDB collection `medivault_patient_documents`.
   - Generate embeddings using OpenAI `text-embedding-3-small`.
   - Attach metadata: `patient_id`, `document_id`, `document_type`, `date`.
   - *Target Files:* `backend/apps/ai_services/chroma_service.py`
   - *Verification:* Query vector index with "blood sugar test" returns relevant lab report chunks.
 
-- [ ] **Task 3.6: Patient Extraction Review & Correction API**
+- [x] **Task 3.6: Patient Extraction Review & Correction API**
   - `GET /api/v1/documents/{id}/`: Detail view returning side-by-side original image URL and unverified entities.
   - `PUT /api/v1/documents/{id}/review/`: Patient reviews and confirms/corrects values; marks `user_confirmed=True`.
   - *Target Files:* `backend/apps/documents/serializers.py`, `backend/apps/documents/views.py`
   - *Verification:* Modifying a dosage strength via review API updates entity provenance to `PATIENT_CONFIRMED`.
 
-- [ ] **Task 3.7: Chronological Patient Timeline API**
+- [x] **Task 3.7: Chronological Patient Timeline API**
   - `GET /api/v1/documents/timeline/`: Unified chronological feed of all documents, lab results, and clinic visits.
   - Filtering by `document_type`, date range, and `family_member_id`.
   - *Target Files:* `backend/apps/documents/views.py`

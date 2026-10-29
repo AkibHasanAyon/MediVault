@@ -18,6 +18,9 @@ urlpatterns = [
     # Authentication & User Management
     path('api/v1/auth/', include('apps.accounts.urls', namespace='auth')),
 
+    # Medical Document Management & OCR Ingestion
+    path('api/v1/documents/', include('apps.documents.urls', namespace='documents')),
+
     # Interactive API Documentation (OpenAPI 3.1 & Swagger)
     path('api/v1/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/v1/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),

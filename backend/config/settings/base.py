@@ -227,6 +227,7 @@ SMS_SENDER_ID = env('SMS_SENDER_ID', default='MediVault')
 OPENAI_API_KEY = env('OPENAI_API_KEY', default='')
 OPENAI_MODEL = env('OPENAI_MODEL', default='gpt-4o-mini')
 OPENAI_EMBEDDING_MODEL = env('OPENAI_EMBEDDING_MODEL', default='text-embedding-3-small')
+GOOGLE_API_KEY = env('GOOGLE_API_KEY', default='')
 GOOGLE_APPLICATION_CREDENTIALS = env('GOOGLE_APPLICATION_CREDENTIALS', default='')
 GCP_PROJECT_ID = env('GCP_PROJECT_ID', default='medivault-vision-ocr')
 
