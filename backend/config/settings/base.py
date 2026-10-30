@@ -204,6 +204,12 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+CELERY_BEAT_SCHEDULE = {
+    'dispatch-medication-reminders-every-15-mins': {
+        'task': 'apps.medications.tasks.dispatch_scheduled_medication_reminders',
+        'schedule': 900.0,  # 15 minutes
+    },
+}
 
 # Messaging & Notification Gateway
 # 'email' (Zero-cost SMTP for dev/prototype) or 'sms' (Bangladesh carrier SMS)

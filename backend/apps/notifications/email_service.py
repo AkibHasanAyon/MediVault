@@ -82,3 +82,28 @@ class EmailService:
             logger.error("Failed to dispatch danger alert email to %s: %s", to_email, str(e))
             return False
 
+    @staticmethod
+    def send_medication_reminder_email(to_email: str, patient_name: str, medication_name: str, strength: str, time_str: str) -> bool:
+        subject = f"⏰ Medication Reminder: {medication_name} ({strength})"
+        message = (
+            f"Dear {patient_name},\n\n"
+            f"It is time to take your scheduled medication:\n\n"
+            f"• Medication: {medication_name} ({strength})\n"
+            f"• Scheduled Time: {time_str}\n\n"
+            f"Please mark this dose as taken in your MediVault app.\n"
+            f"Note: Never take a double dose if you previously missed one.\n\n"
+            f"— MediVault Daily Health Desk"
+        )
+        try:
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[to_email],
+                fail_silently=False,
+            )
+            return True
+        except Exception as e:
+            logger.error("Failed to dispatch medication reminder email to %s: %s", to_email, str(e))
+            return False
+

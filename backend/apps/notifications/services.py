@@ -70,3 +70,12 @@ class MessagingService:
             sms_text = f"EMERGENCY ALERT: {alert_type} ({trigger_value}). {instructions[:120]}... Call 999 if severe."
             return SMSGatewayService.send_sms(recipient_phone, sms_text)
 
+    @classmethod
+    def send_medication_reminder(cls, recipient_phone: str, recipient_email: str | None, patient_name: str, medication_name: str, strength: str, time_str: str) -> bool:
+        backend = cls.get_backend()
+        if backend == 'email' and recipient_email:
+            return EmailService.send_medication_reminder_email(recipient_email, patient_name, medication_name, strength, time_str)
+        else:
+            sms_text = f"MediVault Reminder: Time to take {medication_name} ({strength}) scheduled for {time_str}."
+            return SMSGatewayService.send_sms(recipient_phone, sms_text)
+

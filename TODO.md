@@ -11,10 +11,10 @@
 
 | Metric | Status |
 |---|---|
-| **Overall Project Completion** | **33%** (`3 / 9 Phases Complete` · `23 / 64 Tasks Done`) |
-| **Current Active Phase** | **Phase 4: Health Monitoring & Danger Alert System (Weeks 4–5)** |
+| **Overall Project Completion** | **44%** (`4 / 9 Phases Complete` · `31 / 64 Tasks Done`) |
+| **Current Active Phase** | **Phase 5: AI Clinical Intelligence, RAG & Monthly Reports (Weeks 5–7)** |
 | **Messaging Channel Mode** | `MESSAGING_BACKEND=email` (Zero-cost SMTP dev mode) |
-| **Next Actionable Task** | `T4.1: Blood Glucose Vitals API & Context Tagging` |
+| **Next Actionable Task** | `T5.1: ChromaDB Semantic RAG Retrieval Service` |
 
 ### 🗺️ 9-Phase Roadmap Alignment
 
@@ -25,7 +25,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
 | **1** | [Section 2](#phase-1-foundation-infrastructure--authentication-weeks-12) | Docker, Django 5 Scaffolding, Custom User, JWT, Swagger, SMTP Dispatcher | Weeks 1–2 | 8 | `COMPLETED` ✅ |
 | **2** | [Section 3](#phase-2-core-data-models--database-migrations-weeks-23) | 11 Domain Apps, Base Models, Foreign Keys, Physiological Limits, Initial Migrations | Weeks 2–3 | 8 | `COMPLETED` ✅ |
 | **3** | [Section 4](#phase-3-document-processing--ocr-pipeline-weeks-34) | Upload API, Celery Workers, GCP Vision OCR, GPT-4o-mini Extraction, ChromaDB Index | Weeks 3–4 | 7 | `COMPLETED` ✅ |
-| **4** | [Section 5](#phase-4-health-monitoring--danger-alert-system-weeks-45) | Vitals CRUD, Danger Alerts (Hypo/Hyper/Crisis OR), Meds Schedule & Adherence | Weeks 4–5 | 8 | `PENDING` |
+| **4** | [Section 5](#phase-4-health-monitoring--danger-alert-system-weeks-45) | Vitals CRUD, Danger Alerts (Hypo/Hyper/Crisis OR), Meds Schedule & Adherence | Weeks 4–5 | 8 | `COMPLETED` ✅ |
 | **5** | [Section 6](#phase-5-ai-clinical-intelligence-rag--monthly-reports-weeks-57) | ChromaDB RAG, Bilingual Bangla/English "Ask AI", Pre-Intake, 10-Sec Brief, WeasyPrint PDF | Weeks 5–7 | 7 | `PENDING` |
 | **6** | [Section 7](#phase-6-scoped-qr-consultation--digital-prescriptions-weeks-78) | 30-Min Ephemeral HMAC QR, Doctor Scanner, Digital Rx Canvas, Drug Interactions | Weeks 7–8 | 8 | `PENDING` |
 | **7** | [Section 8](#phase-7-real-time-chamber-queue-websockets-weeks-89) | Django Channels WebSocket, Live Queue Consumer, Assistant & Doctor Desk, Multi-Channel Serial Alerts | Weeks 8–9 | 6 | `PENDING` |
@@ -224,27 +224,27 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
 
 **Implementation Guide Reference:** [docs/Implementation.md § 5](file:///c:/Users/User/Desktop/Medivault%20resources/MediVault/docs/Implementation.md#5-phase-4-health-monitoring--danger-alert-system-weeks-45)
 
-- [ ] **Task 4.1: Blood Glucose Vitals API & Context Tagging**
+- [x] **Task 4.1: Blood Glucose Vitals API & Context Tagging**
   - `POST /api/v1/health-logs/blood-glucose/`: Log glucose in `mmol/L` (auto-convert if `mg/dL` passed).
   - Measurement contexts: `FASTING`, `POST_MEAL`, `BEDTIME`, `RANDOM`.
   - Hard limit validation: reject values `< 0.5` or `> 60.0 mmol/L`.
   - *Target Files:* `backend/apps/health_logs/serializers.py`, `backend/apps/health_logs/views.py`
   - *Verification:* Inputting `5.4 mmol/L` saves successfully; inputting `99 mmol/L` returns 400 Bad Request.
 
-- [ ] **Task 4.2: Blood Pressure & Pulse Tracking**
+- [x] **Task 4.2: Blood Pressure & Pulse Tracking**
   - `POST /api/v1/health-logs/blood-pressure/`: Record `systolic_mmHg`, `diastolic_mmHg`, and `pulse_bpm`.
   - Hard limit validation: reject systolic `< 40` or `> 300`, diastolic `< 30` or `> 200`.
   - Auto-categorize BP stage (Normal, Elevated, Stage 1, Stage 2, Crisis).
   - *Target Files:* `backend/apps/health_logs/models.py`, `backend/apps/health_logs/services.py`
   - *Verification:* Entering `120/80` categorizes as `NORMAL`; `160/100` categorizes as `STAGE_2`.
 
-- [ ] **Task 4.3: Weight, BMI & Symptom Logging**
+- [x] **Task 4.3: Weight, BMI & Symptom Logging**
   - `POST /api/v1/health-logs/weight/`: Record weight in `kg`; compute BMI from patient height.
   - `POST /api/v1/health-logs/symptoms/`: Multi-tag symptom logger with severity scale.
   - *Target Files:* `backend/apps/health_logs/views.py`
   - *Verification:* Adding weight updates BMI metric card.
 
-- [ ] **Task 4.4: Algorithmic Danger Alert Engine (Clinical Standards)**
+- [x] **Task 4.4: Algorithmic Danger Alert Engine (Clinical Standards)**
   - Implement Django post-save signals on vitals models:
     - **Hypoglycemia Alert:** Glucose `< 3.9 mmol/L`
     - **Hyperglycemia Alert:** Glucose `> 16.0 mmol/L`
@@ -253,14 +253,14 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/health_logs/signals.py`, `backend/apps/health_logs/alert_engine.py`
   - *Verification:* Saving BP `185/85` triggers Hypertensive Crisis alert (even though diastolic < 120).
 
-- [ ] **Task 4.5: Danger Alert WebSocket & Emergency Messaging Dispatch**
+- [x] **Task 4.5: Danger Alert WebSocket & Emergency Messaging Dispatch**
   - Publish alert immediately to Redis channel layer `user_{patient_id}_alerts`.
   - Queue `send_emergency_alert_task` to dispatch urgent notification via `MessagingService` (SMTP email in dev, SMS in prod).
   - Alert contains direct emergency contact (**999**) instructions.
   - *Target Files:* `backend/apps/health_logs/tasks.py`, `backend/apps/notifications/consumers.py`
   - *Verification:* Glucose 3.1 mmol/L generates WebSocket event in `< 200ms` and sends email notification.
 
-- [ ] **Task 4.6: Active Medication Roster & Frequency Parser**
+- [x] **Task 4.6: Active Medication Roster & Frequency Parser**
   - Parse prescription frequency patterns:
     - `1+0+1` $\rightarrow$ 08:00 AM, 08:00 PM
     - `1+1+1` $\rightarrow$ 08:00 AM, 02:00 PM, 08:00 PM
@@ -270,7 +270,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/medications/services/schedule_builder.py`
   - *Verification:* Pattern `1+0+1` generates two reminder slots at 08:00 and 20:00.
 
-- [ ] **Task 4.7: Daily Medication Dose Center & Adherence Logging**
+- [x] **Task 4.7: Daily Medication Dose Center & Adherence Logging**
   - `GET /api/v1/medications/today/`: Returns today's doses sorted by time slot (Morning, Noon, Night).
   - Status indicators: `PENDING`, `TAKEN`, `SKIPPED`, `SNOOZED`.
   - Calculate adherence percentage: $\frac{\text{Doses Taken}}{\text{Scheduled Doses}} \times 100$.
@@ -278,7 +278,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/medications/views.py`, `backend/apps/medications/services/adherence.py`
   - *Verification:* Marking dose TAKEN decrements remaining refill count by 1.
 
-- [ ] **Task 4.8: Celery Beat 15-Minute Reminder Dispatcher**
+- [x] **Task 4.8: Celery Beat 15-Minute Reminder Dispatcher**
   - Set up Celery Beat task `dispatch_scheduled_medication_reminders` running every 15 minutes.
   - Query reminders due in the current 15-minute window with `notification_enabled=True`.
   - Dispatch in-app push and email notification via `MessagingService`.

@@ -21,6 +21,12 @@ urlpatterns = [
     # Medical Document Management & OCR Ingestion
     path('api/v1/documents/', include('apps.documents.urls', namespace='documents')),
 
+    # Daily Health Logs & Danger Alerts (Phase 4)
+    path('api/v1/health-logs/', include('apps.health_logs.urls')),
+
+    # Active Medications & Adherence Engine (Phase 4)
+    path('api/v1/medications/', include('apps.medications.urls')),
+
     # Interactive API Documentation (OpenAPI 3.1 & Swagger)
     path('api/v1/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/v1/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),

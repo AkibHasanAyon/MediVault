@@ -6,6 +6,7 @@ import socket
 from .base import *
 
 DEBUG = True
+ALLOWED_HOSTS = ['*']
 
 # Allow fallback SQLite database if PostgreSQL container is offline during local testing
 if not env('DATABASE_URL', default='').startswith('sqlite'):
