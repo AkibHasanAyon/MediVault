@@ -126,18 +126,52 @@ class OpenAIService:
 
         # Try to find date in text
         date_match = re.search(r'\b(20[2-3][0-9]-[0-1][0-9]-[0-3][0-9])\b', text)
-        doc_date = date_match.group(1) if date_match else "2026-08-14"
+        doc_date = date_match.group(1) if date_match else None
+
+        # Try to find clinic name in text
+        clinic_name = None
+        clinic_match = re.search(
+            r'([A-Za-z0-9 \t\.\-&]{3,40}(?:Diagnostic|Clinic|Hospital|Medical Center|Medical Centre|Lab|Laboratories)[A-Za-z0-9 \t\.\-]*)',
+            text,
+            re.IGNORECASE
+        )
+        if clinic_match:
+            clinic_name = clinic_match.group(1).strip()
+
+        # Try to find doctor name in text (prioritizing Referred By / Ref. By / Prescribed By)
+        doctor_name = None
+        ref_match = re.search(
+            r'(?:Referred\s*By|Ref\.?\s*By|Ordered\s*By|Prescribed\s*By)\s*[:\-]?(?:[ \t]*[\r\n]+[ \t]*:?)?[ \t]*([^\r\n]+)',
+            text,
+            re.IGNORECASE
+        )
+        if ref_match:
+            candidate = ref_match.group(1).strip()
+            # Stop before adjacent metadata columns like Age, Sex, Date, Bed, etc.
+            candidate = re.split(
+                r'(?:\b(?:Age|Sex|Date|Pt|Patient|Bed|Cabin|Reg|Ref|Lab|Bill|Phone)\b[:\-])',
+                candidate,
+                flags=re.IGNORECASE
+            )[0].strip()
+            candidate = re.sub(r'[\s,\-]+$', '', candidate).strip()
+            if len(candidate) > 2 and not candidate.lower().startswith('none'):
+                doctor_name = candidate
+
+        if not doctor_name:
+            doc_match = re.search(r'((?:Dr\.|Prof\.|Professor)\s+[A-Za-z\s\.\-]{3,35})', text)
+            if doc_match:
+                doctor_name = doc_match.group(1).strip()
 
         return {
             "document_type": doc_type,
             "document_date": doc_date,
-            "title": smart_title,
-            "document_summary": f"Scanned {smart_title}",
-            "doctor_name": "Dr. Nasreen Akhter",
-            "clinic_name": "Shapla Care Clinic",
-            "diagnoses": diagnoses or ["General Consultation"],
+            "title": f"{smart_title}{f' - {clinic_name}' if clinic_name else ''}",
+            "document_summary": f"Analyzed {smart_title}",
+            "doctor_name": doctor_name,
+            "clinic_name": clinic_name,
+            "diagnoses": diagnoses,
             "medications": medications,
             "lab_tests": lab_tests,
-            "follow_up_advice": "Review after 3 months"
+            "follow_up_advice": None
         }
 

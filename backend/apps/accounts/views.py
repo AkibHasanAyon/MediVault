@@ -27,6 +27,9 @@ class RegisterView(views.APIView):
     def post(self, request):
         data = request.data.copy()
 
+        if data.get('email'):
+            data['email'] = data['email'].strip().lower()
+
         # If email provided but no phone, auto-generate valid placeholder BD phone
         if data.get('email') and not data.get('phone_number'):
             while True:
@@ -48,20 +51,58 @@ class RegisterView(views.APIView):
 
         user = serializer.save()
 
-        # Update doctor specialty or BMDC if provided
-        bmdc = request.data.get('bmdc_number', '').strip()
-        if user.role == 'DOCTOR' and hasattr(user, 'doctor_profile') and bmdc:
-            user.doctor_profile.bmdc_number = bmdc
-            if request.data.get('specialty'):
-                user.doctor_profile.primary_specialty = request.data.get('specialty')
-            user.doctor_profile.save(update_fields=['bmdc_number', 'primary_specialty'])
+        # Update profile with real given information — NO dummy data
+        if user.role == User.Role.DOCTOR:
+            from apps.doctors.models import DoctorProfile
+            doctor_profile, _ = DoctorProfile.objects.get_or_create(user=user)
+            bmdc = request.data.get('bmdc_number', '').strip() or request.data.get('bmdc_registration_number', '').strip()
+            specialty = request.data.get('specialty', '').strip() or request.data.get('primary_specialty', '').strip()
+            qualifications = request.data.get('degrees_qualifications', '').strip() or request.data.get('qualifications', '').strip()
+            if bmdc:
+                doctor_profile.bmdc_registration_number = bmdc
+            if specialty:
+                doctor_profile.primary_specialty = specialty
+            if qualifications:
+                doctor_profile.degrees_qualifications = qualifications
+            doctor_profile.save()
+
+        elif user.role == User.Role.PATIENT:
+            from apps.patients.models import PatientProfile
+            patient_profile, _ = PatientProfile.objects.get_or_create(user=user)
+            gender = request.data.get('gender')
+            dob = request.data.get('date_of_birth')
+            blood_group = request.data.get('blood_group')
+            emergency_phone = request.data.get('emergency_contact_phone')
+            allergies = request.data.get('known_allergies')
+
+            if gender and gender in PatientProfile.Gender.values:
+                patient_profile.gender = gender
+            if dob:
+                patient_profile.date_of_birth = dob
+            if blood_group and blood_group in PatientProfile.BloodGroup.values:
+                patient_profile.blood_group = blood_group
+            if emergency_phone:
+                patient_profile.emergency_contact_phone = emergency_phone
+            if allergies:
+                patient_profile.known_allergies = allergies
+            patient_profile.save()
+
+        elif user.role == User.Role.ASSISTANT:
+            from apps.clinics.models import Clinic, ClinicAssistantProfile
+            clinic_id = request.data.get('clinic_id')
+            clinic = Clinic.objects.filter(id=clinic_id).first() if clinic_id else Clinic.objects.first()
+            if clinic:
+                ClinicAssistantProfile.objects.get_or_create(
+                    user=user,
+                    defaults={
+                        'clinic': clinic,
+                        'desk_serial': request.data.get('desk_serial', 'Desk-1'),
+                    }
+                )
 
         identifier = user.email or user.phone_number
-        otp_code = OTPService.generate_otp(identifier)
-        if user.email and identifier != user.email:
-            OTPService.generate_otp(user.email)
-        if user.phone_number and identifier != user.phone_number:
-            OTPService.generate_otp(user.phone_number)
+        secondary = user.phone_number if identifier == user.email else user.email
+        otp_code = OTPService.generate_otp(identifier, secondary_identifier=secondary)
 
         MessagingService.send_otp(
             recipient_phone=user.phone_number,
@@ -120,18 +161,22 @@ class VerifyPhoneView(views.APIView):
         # 1. Direct OTP verification
         is_valid, msg = OTPService.verify_otp(identifier, otp_code)
 
-        # 2. Dual fallback lookup (email <-> phone)
+        # 2. Dual fallback lookup (email <-> phone) only if primary identifier had no active OTP
         user = None
         if email:
             user = User.objects.filter(email__iexact=email).first()
-            if not is_valid and user and user.phone_number:
-                is_valid, msg = OTPService.verify_otp(user.phone_number, otp_code)
+            if not is_valid and ("not requested" in msg or "expired" in msg) and user and user.phone_number:
+                fallback_valid, fallback_msg = OTPService.verify_otp(user.phone_number, otp_code)
+                if fallback_valid:
+                    is_valid, msg = fallback_valid, fallback_msg
         elif raw_phone:
             try:
                 phone_num = validate_bangladeshi_phone(raw_phone)
                 user = User.objects.filter(phone_number=phone_num).first()
-                if not is_valid and user and user.email:
-                    is_valid, msg = OTPService.verify_otp(user.email, otp_code)
+                if not is_valid and ("not requested" in msg or "expired" in msg) and user and user.email:
+                    fallback_valid, fallback_msg = OTPService.verify_otp(user.email, otp_code)
+                    if fallback_valid:
+                        is_valid, msg = fallback_valid, fallback_msg
             except Exception:
                 pass
 
@@ -186,8 +231,8 @@ class VerifyPhoneView(views.APIView):
 
 class RequestOTPView(views.APIView):
     """
-    Dispatches a 6-digit OTP code to the given Email or Phone number.
-    Auto-provisions the user account if it doesn't exist yet for smooth onboarding.
+    Dispatches a 6-digit OTP code to the registered user's Email or Phone number.
+    Rejects unregistered users with a friendly 404 prompting them to register.
     """
     permission_classes = [permissions.AllowAny]
 
@@ -212,49 +257,18 @@ class RequestOTPView(views.APIView):
                 pass
 
         if not user:
-            # Auto-provision user account
-            role = 'PATIENT'
-            if email:
-                if 'doctor' in email:
-                    role = 'DOCTOR'
-                elif 'assistant' in email:
-                    role = 'ASSISTANT'
-            elif raw_phone:
-                if '000002' in raw_phone:
-                    role = 'DOCTOR'
-                elif '000003' in raw_phone:
-                    role = 'ASSISTANT'
-
-            name = "Dr. MediVault" if role == 'DOCTOR' else ("Clinic Assistant" if role == 'ASSISTANT' else "MediVault Patient")
-            
-            # Generate phone if only email provided
-            phone_val = None
-            if raw_phone:
-                try:
-                    phone_val = validate_bangladeshi_phone(raw_phone)
-                except Exception:
-                    pass
-            if not phone_val:
-                while True:
-                    phone_val = f"+88017{random.randint(10000000, 99999999)}"
-                    if not User.objects.filter(phone_number=phone_val).exists():
-                        break
-
-            user = User.objects.create_user(
-                phone_number=phone_val,
-                email=email if email else None,
-                password=None,
-                role=role,
-                full_name=name,
-                is_phone_verified=True if getattr(settings, 'DEBUG', False) else False
+            return Response(
+                {
+                    "success": False,
+                    "code": "USER_NOT_FOUND",
+                    "message": f"No account registered with {email or raw_phone}. Please click Create Account (নিবন্ধন করুন) to register.",
+                },
+                status=status.HTTP_404_NOT_FOUND
             )
 
-        identifier = email if email else user.phone_number
-        otp_code = OTPService.generate_otp(identifier)
-        if user.email and identifier != user.email:
-            OTPService.generate_otp(user.email)
-        if user.phone_number and identifier != user.phone_number:
-            OTPService.generate_otp(user.phone_number)
+        identifier = user.email or user.phone_number
+        secondary = user.phone_number if identifier == user.email else user.email
+        otp_code = OTPService.generate_otp(identifier, secondary_identifier=secondary)
 
         MessagingService.send_otp(
             recipient_phone=user.phone_number,
@@ -267,7 +281,7 @@ class RequestOTPView(views.APIView):
         return Response(
             {
                 "success": True,
-                "message": f"Fresh 6-digit OTP code dispatched to {user.email or user.phone_number}.",
+                "message": f"Verification code dispatched to {user.email or user.phone_number}.",
                 "data": {
                     "email": user.email,
                     "phone_number": user.phone_number,
@@ -286,31 +300,30 @@ class ResendOTPView(views.APIView):
     """
     permission_classes = [permissions.AllowAny]
 
-    @extend_schema(
-        request=ResendOTPSerializer,
-        responses={
-            200: OpenApiResponse(description="Fresh OTP dispatched."),
-            404: OpenApiResponse(description="User not found."),
-        }
-    )
     def post(self, request):
-        serializer = ResendOTPSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(
-                {"success": False, "errors": serializer.errors},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        email = request.data.get('email', '').strip().lower()
+        raw_phone = request.data.get('phone_number', '').strip()
 
-        phone_number = serializer.validated_data['phone_number']
-        try:
-            user = User.objects.get(phone_number=phone_number)
-        except User.DoesNotExist:
+        user = None
+        if email:
+            user = User.objects.filter(email__iexact=email).first()
+        elif raw_phone:
+            try:
+                formatted_phone = validate_bangladeshi_phone(raw_phone)
+                user = User.objects.filter(phone_number=formatted_phone).first()
+            except Exception:
+                pass
+
+        if not user:
             return Response(
-                {"success": False, "message": "No account registered with this phone number."},
+                {"success": False, "message": "No account registered with this identifier."},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        otp_code = OTPService.generate_otp(user.phone_number)
+        identifier = user.email or user.phone_number
+        secondary = user.phone_number if identifier == user.email else user.email
+        otp_code = OTPService.generate_otp(identifier, secondary_identifier=secondary)
+
         MessagingService.send_otp(
             recipient_phone=user.phone_number,
             recipient_email=user.email,
@@ -321,7 +334,7 @@ class ResendOTPView(views.APIView):
         return Response(
             {
                 "success": True,
-                "message": "Fresh 6-digit verification code dispatched.",
+                "message": f"Fresh 6-digit verification code dispatched to {user.email or user.phone_number}.",
                 "data": {
                     "resend_countdown_seconds": 60,
                     "channel": MessagingService.get_backend()

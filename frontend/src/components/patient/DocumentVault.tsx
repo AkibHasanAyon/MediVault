@@ -228,7 +228,7 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({ documents, onRefre
             <input
               id="file-upload-input"
               type="file"
-              accept="image/*,application/pdf"
+              accept="image/*,application/pdf,.heic,.heif"
               className="hidden"
               onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)}
             />
@@ -253,7 +253,7 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({ documents, onRefre
                   Click to browse or drag & drop document
                 </p>
                 <p className="text-xs text-slate-400 mt-1">
-                  Supports Camera Photos, JPEG, PNG, WebP, or Multi-page PDF (up to 10MB)
+                  Supports iPhone / Camera Photos (HEIC, JPEG, PNG, WebP) or Multi-page PDF (up to 10MB)
                 </p>
               </div>
             )}

@@ -28,6 +28,16 @@ class BloodGlucoseLogSerializer(serializers.ModelSerializer):
         write_only=True,
         help_text="Optional reading in mg/dL (auto-converts to mmol/L)"
     )
+    # Generic aliases for frontend flexibility
+    glucose_value = serializers.DecimalField(
+        max_digits=5,
+        decimal_places=1,
+        required=False,
+        write_only=True,
+        help_text="Generic glucose value input"
+    )
+    unit = serializers.CharField(required=False, write_only=True, default='mmol')
+    context = serializers.CharField(required=False, write_only=True)
     family_member_name = serializers.CharField(source='family_member.full_name', read_only=True)
 
     class Meta:
@@ -37,6 +47,9 @@ class BloodGlucoseLogSerializer(serializers.ModelSerializer):
             'patient',
             'family_member',
             'family_member_name',
+            'glucose_value',
+            'unit',
+            'context',
             'glucose_value_mmol',
             'glucose_value_mgdl',
             'reading_type',
@@ -48,6 +61,20 @@ class BloodGlucoseLogSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'patient', 'is_danger', 'created_at']
 
     def validate(self, attrs):
+        # Handle generic 'glucose_value' and 'unit'
+        generic_val = attrs.pop('glucose_value', None)
+        unit = attrs.pop('unit', 'mmol').lower()
+        if generic_val is not None:
+            if 'mgdl' in unit:
+                attrs['glucose_value_mgdl'] = generic_val
+            else:
+                attrs['glucose_value_mmol'] = generic_val
+
+        # Handle generic 'context' -> 'reading_type'
+        context_val = attrs.pop('context', None)
+        if context_val and not attrs.get('reading_type'):
+            attrs['reading_type'] = context_val.upper()
+
         # Auto-convert mg/dL to mmol/L if mmol is omitted but mg/dL is passed
         mgdl = attrs.pop('glucose_value_mgdl', None)
         if 'glucose_value_mmol' not in attrs and mgdl is not None:
@@ -139,6 +166,9 @@ class BloodPressureLogSerializer(serializers.ModelSerializer):
 
 
 class WeightLogSerializer(serializers.ModelSerializer):
+    height_cm = serializers.DecimalField(max_digits=5, decimal_places=2, required=False)
+    bmi = serializers.DecimalField(source='calculated_bmi', max_digits=4, decimal_places=1, read_only=True)
+    bmi_category = serializers.SerializerMethodField()
     recorded_at = serializers.DateTimeField(required=False, default=timezone.now)
     family_member_name = serializers.CharField(source='family_member.full_name', read_only=True)
 
@@ -150,11 +180,32 @@ class WeightLogSerializer(serializers.ModelSerializer):
             'family_member',
             'family_member_name',
             'weight_kg',
+            'height_cm',
             'calculated_bmi',
+            'bmi',
+            'bmi_category',
             'recorded_at',
             'created_at',
         ]
-        read_only_fields = ['id', 'patient', 'calculated_bmi', 'created_at']
+        read_only_fields = ['id', 'patient', 'calculated_bmi', 'bmi', 'bmi_category', 'created_at']
+
+    def get_bmi_category(self, obj):
+        bmi = obj.calculated_bmi
+        if not bmi:
+            return None
+        if bmi < Decimal('18.5'):
+            return "Underweight"
+        elif bmi < Decimal('25.0'):
+            return "Normal"
+        elif bmi < Decimal('30.0'):
+            return "Overweight"
+        return "Obese"
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if instance.patient and instance.patient.height_cm:
+            ret['height_cm'] = float(instance.patient.height_cm)
+        return ret
 
     def validate(self, attrs):
         if not attrs.get('recorded_at'):
@@ -169,14 +220,19 @@ class WeightLogSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        height_cm = validated_data.pop('height_cm', None)
         request = self.context.get('request')
         if request and hasattr(request.user, 'patient_profile'):
             patient = request.user.patient_profile
             validated_data['patient'] = patient
-            # Compute BMI if patient profile has height_cm
-            if patient.height_cm and patient.height_cm > 0:
-                height_m = Decimal(patient.height_cm) / Decimal('100.0')
-                bmi = Decimal(validated_data['weight_kg']) / (height_m * height_m)
+            if height_cm and Decimal(str(height_cm)) > 0:
+                patient.height_cm = Decimal(str(height_cm))
+                patient.save(update_fields=['height_cm'])
+
+            effective_height = height_cm or patient.height_cm
+            if effective_height and Decimal(str(effective_height)) > 0:
+                height_m = Decimal(str(effective_height)) / Decimal('100.0')
+                bmi = Decimal(str(validated_data['weight_kg'])) / (height_m * height_m)
                 validated_data['calculated_bmi'] = bmi.quantize(Decimal('0.1'))
 
         return super().create(validated_data)

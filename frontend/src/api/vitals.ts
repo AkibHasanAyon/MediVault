@@ -87,13 +87,32 @@ export const vitalsApi = {
     return data.results || data;
   },
 
-  logGlucose: async (log: { glucose_value: number; unit?: 'mmol' | 'mgdl'; context: string; notes?: string }) => {
-    const { data } = await apiClient.post('/health-logs/glucose/', log);
+  logGlucose: async (log: {
+    glucose_value?: number;
+    glucose_value_mmol?: number;
+    glucose_value_mgdl?: number;
+    unit?: 'mmol' | 'mgdl';
+    context?: string;
+    reading_type?: string;
+    notes?: string;
+  }) => {
+    const payload = {
+      glucose_value_mmol: log.glucose_value_mmol ?? (log.unit === 'mgdl' ? undefined : log.glucose_value),
+      glucose_value_mgdl: log.glucose_value_mgdl ?? (log.unit === 'mgdl' ? log.glucose_value : undefined),
+      reading_type: log.reading_type ?? log.context ?? 'FASTING',
+      notes: log.notes ?? '',
+    };
+    const { data } = await apiClient.post('/health-logs/glucose/', payload);
     return data;
   },
 
   getBPLogs: async (limit = 30): Promise<BloodPressureLog[]> => {
     const { data } = await apiClient.get(`/health-logs/blood-pressure/?limit=${limit}`);
+    return data.results || data;
+  },
+
+  getWeightLogs: async (limit = 30): Promise<WeightLog[]> => {
+    const { data } = await apiClient.get(`/health-logs/weight/?limit=${limit}`);
     return data.results || data;
   },
 

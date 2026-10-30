@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import MedicalDocument, DocumentEntity
 from apps.patients.models import FamilyMember
 from .validators import validate_medical_document_file
+from .utils import convert_heic_to_jpeg_if_needed
 
 class DocumentEntitySerializer(serializers.ModelSerializer):
     class Meta:
@@ -41,6 +42,11 @@ class MedicalDocumentUploadSerializer(serializers.ModelSerializer):
             'created_at',
         )
         read_only_fields = ('id', 'processing_status', 'created_at')
+
+    def validate_file(self, value):
+        if value:
+            return convert_heic_to_jpeg_if_needed(value)
+        return value
 
     def validate_family_member_id(self, value):
         if value:

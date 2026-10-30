@@ -2,6 +2,7 @@ import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.utils.translation import gettext_lazy as _
+from apps.common.models import TimeStampedUUIDModel
 from .managers import UserManager
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -47,4 +48,26 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.full_name} ({self.phone_number}) - {self.get_role_display()}"
+
+
+class OTPToken(TimeStampedUUIDModel):
+    """
+    Cryptographic, persistent OTP verification model.
+    Stores salt-hashed codes with expiration timestamps and rate limits attempts.
+    """
+    identifier = models.CharField(max_length=255, db_index=True, help_text="Normalized email or phone")
+    code_hash = models.CharField(max_length=128)
+    salt = models.CharField(max_length=64)
+    attempts = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField(db_index=True)
+    is_used = models.BooleanField(default=False, db_index=True)
+
+    class Meta:
+        verbose_name = _('OTP Token')
+        verbose_name_plural = _('OTP Tokens')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"OTP for {self.identifier} (used={self.is_used})"
+
 

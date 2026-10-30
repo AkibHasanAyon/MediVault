@@ -23,5 +23,8 @@ pytest>=8.2.0
 pytest-django>=4.8.0
 pytest-cov>=5.0.0
 factory-boy>=3.3.0
+pypdf>=5.0.0
+pypdfium2>=4.30.0
+pillow-heif>=1.8.0
 
 

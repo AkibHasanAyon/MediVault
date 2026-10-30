@@ -10,12 +10,14 @@ ALLOWED_MAGIC_SIGNATURES = {
     b'%PDF-': 'application/pdf',
 }
 
-ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp', 'pdf'}
+ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp', 'pdf', 'heic', 'heif'}
+HEIC_BRANDS = [b'heic', b'heix', b'hevc', b'heim', b'heis', b'mif1', b'msf1', b'miaf']
 
 def validate_medical_document_file(uploaded_file):
     """
     Validates file size and inspects binary magic headers to prevent
     mime-type spoofing and malicious binary uploads.
+    Supports JPEG, PNG, WebP, PDF, and HEIC/HEIF images.
     """
     if uploaded_file.size > MAX_FILE_SIZE_BYTES:
         raise ValidationError(
@@ -26,11 +28,11 @@ def validate_medical_document_file(uploaded_file):
     ext = uploaded_file.name.split('.')[-1].lower() if '.' in uploaded_file.name else ''
     if ext not in ALLOWED_EXTENSIONS:
         raise ValidationError(
-            _(f"Unsupported file extension '.{ext}'. Supported formats are: JPEG, PNG, WebP, PDF.")
+            _(f"Unsupported file extension '.{ext}'. Supported formats are: JPEG, PNG, WebP, PDF, HEIC.")
         )
 
-    # Read the first 16 bytes for magic signature inspection
-    initial_bytes = uploaded_file.read(16)
+    # Read the first 32 bytes for magic signature inspection
+    initial_bytes = uploaded_file.read(32)
     uploaded_file.seek(0)  # Rewind file pointer for downstream storage
 
     is_valid_magic = False
@@ -39,8 +41,14 @@ def validate_medical_document_file(uploaded_file):
             is_valid_magic = True
             break
 
+    # Check for HEIC/HEIF (ISOBMFF structure: bytes 4-8 'ftyp' with compatible brand in bytes 8-32)
+    if not is_valid_magic and len(initial_bytes) >= 12 and initial_bytes[4:8] == b'ftyp':
+        brand_chunk = initial_bytes[8:32]
+        if any(brand in brand_chunk for brand in HEIC_BRANDS):
+            is_valid_magic = True
+
     if not is_valid_magic:
         raise ValidationError(
-            _("Invalid or corrupted file content. File header does not match expected JPEG, PNG, WebP, or PDF format.")
+            _("Invalid or corrupted file content. File header does not match expected JPEG, PNG, WebP, PDF, or HEIC format.")
         )
 

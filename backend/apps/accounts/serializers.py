@@ -62,9 +62,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return formatted
 
     def validate_email(self, value):
-        if value and User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("An account with this email address already exists.")
-        return value or None
+        if value:
+            norm = value.strip().lower()
+            if User.objects.filter(email__iexact=norm).exists():
+                raise serializers.ValidationError("An account with this email address already exists.")
+            return norm
+        return None
 
     def create(self, validated_data):
         password = validated_data.pop('password')

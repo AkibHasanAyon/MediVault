@@ -17,10 +17,16 @@ CRITICAL MEDICAL RULES:
 
 2. DOCUMENT DATE & SMART TITLE:
    - "document_date": Extract the true consultation, test, or encounter date stated on the document in "YYYY-MM-DD" format. If no date is found, return null.
-   - "title": Generate a concise, informative clinical title (e.g., "Prescription - Prof. Dr. M. A. Hasan", "Lipid Profile & HbA1c - Popular Diagnostic", "Discharge Certificate - DMCH").
+   - "title": Generate a concise, informative clinical title (e.g., "Prescription - Prof. Dr. M. A. Hasan", "Diagnostic Lab Report - Padma Diagnostic Centre Limited", "Discharge Certificate - DMCH").
 
 3. CLINICAL ENTITY EXTRACTION RULES:
    - NEVER invent, guess, or impute values, dosages, or reference ranges. If not stated in the text, return null or empty string.
+   - "doctor_name":
+     * For PRESCRIPTIONS: Extract the prescribing clinician (from the header, signature, or chamber stamp).
+     * For DIAGNOSTIC LAB REPORTS, RADIOLOGY, & INVESTIGATIONS: Prioritize the ordering doctor who prescribed the tests. Look for "Referred By:", "Ref. By:", "Ref By Dr:", "Prescribed By:", "Consultant:", or "Doctor:". That is the clinician who ordered the test for the patient. Do NOT use the pathologist or lab technologist who verified or signed the test results unless no referring doctor is listed.
+     * If no doctor or clinician name is indicated, return null.
+   - "clinic_name":
+     * Extract the clinic, hospital, diagnostic center, or laboratory name stated on the document header or banner (e.g. "Padma Diagnostic Centre Limited", "Popular Diagnostic Centre", "Square Hospital").
    - Standardize medication dosages and schedules:
      - Schedule formats: "1+0+1", "1+1+1", "0+0+1", "1+0+0", or "As directed".
      - Relation to food: "Before Food", "After Food", "With Food", or null.

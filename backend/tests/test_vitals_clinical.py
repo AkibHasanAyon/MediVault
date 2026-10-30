@@ -132,3 +132,17 @@ class TestPhase9ClinicalDataAndVitalsSafety:
 
         alert.refresh_from_db()
         assert alert.is_acknowledged is True
+
+    def test_weight_log_with_height_and_bmi_calculation(self):
+        """Logging weight with optional height calculates BMI and persists to patient profile."""
+        res = self.client.post('/api/v1/health-logs/weight/', {
+            "weight_kg": "70.0",
+            "height_cm": "175.0",
+        })
+        assert res.status_code == 201
+        assert float(res.data["weight_kg"]) == 70.0
+        assert float(res.data["calculated_bmi"]) == 22.9
+        assert res.data["bmi_category"] == "Normal"
+
+        self.patient_profile.refresh_from_db()
+        assert float(self.patient_profile.height_cm) == 175.0

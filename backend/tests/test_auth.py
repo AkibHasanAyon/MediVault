@@ -87,3 +87,50 @@ class TestAuthenticationEndpoints:
         assert res_auth.status_code == 200
         assert res_auth.data["data"]["full_name"] == "Profile User"
 
+
+    def test_email_registration_and_real_profile_creation(self, api_client):
+        """Registration uses given information and saves to PatientProfile without dummy data."""
+        payload = {
+            "email": "real.patient@example.com",
+            "full_name": "Mustafizur Rahman",
+            "role": "PATIENT",
+            "gender": "MALE",
+            "blood_group": "B+",
+            "date_of_birth": "1992-05-14",
+            "emergency_contact_phone": "+8801799887766",
+        }
+        res = api_client.post('/api/v1/auth/register/', data=payload, format='json')
+        assert res.status_code == 201
+
+        user = User.objects.get(email="real.patient@example.com")
+        assert user.full_name == "Mustafizur Rahman"
+        assert hasattr(user, 'patient_profile')
+        profile = user.patient_profile
+        assert profile.gender == "MALE"
+        assert profile.blood_group == "B+"
+        assert str(profile.date_of_birth) == "1992-05-14"
+        assert profile.emergency_contact_phone == "+8801799887766"
+
+    def test_otp_verification_rejects_default_123456(self, api_client):
+        """Default bypass code '123456' is rejected when it doesn't match the generated OTP."""
+        email = "test.otp.reject@example.com"
+        user = User.objects.create_user(phone_number="+8801788776655", email=email, full_name="OTP User")
+
+        real_code = OTPService.generate_otp(email)
+        assert real_code != "123456"
+
+        # Submitting 123456 must FAIL
+        res_default = api_client.post('/api/v1/auth/otp/verify/', data={
+            "email": email,
+            "otp_code": "123456"
+        }, format='json')
+        assert res_default.status_code == 400
+        assert "Invalid OTP" in res_default.data["message"]
+
+        # Submitting real code must SUCCEED
+        res_real = api_client.post('/api/v1/auth/otp/verify/', data={
+            "email": email,
+            "otp_code": real_code
+        }, format='json')
+        assert res_real.status_code == 200
+        assert "access" in res_real.data["data"]

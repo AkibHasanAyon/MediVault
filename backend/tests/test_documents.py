@@ -24,6 +24,15 @@ def create_valid_dummy_image():
     img.save(buf, format="JPEG")
     return buf.getvalue()
 
+def create_valid_dummy_heic():
+    """Returns a valid HEIC/HEIF image bytes."""
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+    buf = io.BytesIO()
+    img = Image.new("RGB", (100, 100), color=(200, 50, 50))
+    img.save(buf, format="HEIF")
+    return buf.getvalue()
+
 @pytest.fixture
 def api_client():
     return APIClient()
@@ -215,3 +224,53 @@ class TestPhase3DocumentProcessing:
         assert doc.document_type == MedicalDocument.DocType.PRESCRIPTION
         assert doc.title != ""
         assert doc.extracted_entities.filter(entity_type=DocumentEntity.EntityType.MEDICATION).exists()
+
+    def test_heic_file_validation_and_conversion(self, api_client):
+        """
+        Verify that iPhone HEIC images pass validation and are automatically converted
+        to high-quality JPEG on upload so browsers can display them natively.
+        """
+        # 1. Direct validator check
+        heic_bytes = create_valid_dummy_heic()
+        valid_heic = SimpleUploadedFile("iphone_photo.heic", heic_bytes, content_type="image/heic")
+        validate_medical_document_file(valid_heic)  # Should not raise
+
+        # 2. Upload through API and verify conversion to JPEG
+        patient = User.objects.create_user(phone_number="+8801720000007", password="pwd", full_name="HEIC Patient")
+        api_client.force_authenticate(user=patient)
+
+        res = api_client.post(
+            '/api/v1/documents/upload/',
+            data={"file": SimpleUploadedFile("photo.heic", heic_bytes, content_type="image/heic")},
+            format='multipart'
+        )
+        assert res.status_code == 202
+        doc_id = res.data["data"]["document_id"]
+        doc = MedicalDocument.objects.get(id=doc_id)
+
+        # File should be converted to .jpg so web browsers can display it
+        assert doc.file.name.lower().endswith('.jpg')
+
+    def test_referred_by_doctor_extraction(self):
+        """
+        Verify that diagnostic lab reports prioritize the referring clinician
+        (indicated by 'Referred By:' or 'Ref. By:') as the ordering doctor.
+        """
+        from apps.ai_services.openai_service import OpenAIService
+        ai_service = OpenAIService()
+
+        sample_lab_text = (
+            "PADMA DIAGNOSTIC CENTRE LTD.\n"
+            "MALIBAGH BRANCH: 245/2 New Circular Road, Dhaka\n"
+            "Patient Name: Mrs. Fatema Begum   Age: 48 Yrs   Sex: Female\n"
+            "Referred By\n"
+            ": Khaleda Khatun MSC MPH\n"
+            "Date: 2026-08-14\n"
+            "CLINICAL BIOCHEMISTRY REPORT\n"
+            "Fasting Blood Glucose: 6.8 mmol/L (Ref: 4.0 - 6.0)\n"
+            "Dr. Pratul Kumer Sarkar - Consultant Biochemist\n"
+        )
+        parsed = ai_service._rule_based_fallback_parser(sample_lab_text)
+        assert parsed["doctor_name"] == "Khaleda Khatun MSC MPH"
+        assert "PADMA DIAGNOSTIC CENTRE" in parsed["clinic_name"]
+        assert parsed["document_type"] == "LAB_REPORT"

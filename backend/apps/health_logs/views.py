@@ -159,7 +159,7 @@ class VitalsSummaryView(APIView):
             },
             "weight": {
                 "latest": WeightLogSerializer(latest_weight).data if latest_weight else None,
-                "current_bmi": round(float(latest_weight.bmi), 1) if latest_weight and hasattr(latest_weight, 'bmi') and latest_weight.bmi else None,
+                "current_bmi": round(float(latest_weight.calculated_bmi), 1) if latest_weight and latest_weight.calculated_bmi else None,
             },
         }
         return Response({"success": True, "data": data}, status=status.HTTP_200_OK)

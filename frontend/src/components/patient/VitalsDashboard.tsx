@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Activity, Plus, Heart, Scale } from 'lucide-react';
-import { vitalsApi, VitalsSummary, GlucoseLog, BloodPressureLog } from '../../api/vitals';
+import { vitalsApi, VitalsSummary, GlucoseLog, BloodPressureLog, WeightLog } from '../../api/vitals';
 import { Modal } from '../common/Modal';
 
 interface VitalsDashboardProps {
@@ -14,6 +14,7 @@ interface TrendPoint {
   glucose?: number;
   systolic?: number;
   diastolic?: number;
+  weight?: number;
 }
 
 export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRefresh }) => {
@@ -28,14 +29,16 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
   const [diastolic, setDiastolic] = useState('');
   const [pulse, setPulse] = useState('');
   const [weightKg, setWeightKg] = useState('');
+  const [heightCm, setHeightCm] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch real logs to render chronological trend
   const fetchTrendData = async () => {
     try {
-      const [glucoseRes, bpRes] = await Promise.all([
+      const [glucoseRes, bpRes, weightRes] = await Promise.all([
         vitalsApi.getGlucoseLogs(10).catch(() => [] as GlucoseLog[]),
         vitalsApi.getBPLogs(10).catch(() => [] as BloodPressureLog[]),
+        vitalsApi.getWeightLogs(10).catch(() => [] as WeightLog[]),
       ]);
 
       const dateMap = new Map<string, TrendPoint>();
@@ -52,6 +55,13 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
         const existing = dateMap.get(d) || { date: d };
         existing.systolic = b.systolic_mmHg;
         existing.diastolic = b.diastolic_mmHg;
+        dateMap.set(d, existing);
+      });
+
+      (weightRes || []).forEach((w) => {
+        const d = new Date(w.recorded_at).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
+        const existing = dateMap.get(d) || { date: d };
+        existing.weight = typeof w.weight_kg === 'number' ? w.weight_kg : parseFloat(String(w.weight_kg));
         dateMap.set(d, existing);
       });
 
@@ -85,6 +95,7 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
       } else if (vitalType === 'WEIGHT') {
         await vitalsApi.logWeight({
           weight_kg: parseFloat(weightKg),
+          height_cm: heightCm ? parseFloat(heightCm) : undefined,
         });
       }
       setIsModalOpen(false);
@@ -93,6 +104,7 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
       setDiastolic('');
       setPulse('');
       setWeightKg('');
+      setHeightCm('');
       onRefresh();
       fetchTrendData();
     } finally {
@@ -261,6 +273,15 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
                 name="Systolic (mmHg)"
                 connectNulls
               />
+              <Line
+                type="monotone"
+                dataKey="weight"
+                stroke="#0284C7"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                name="Weight (kg)"
+                connectNulls
+              />
             </LineChart>
           </ResponsiveContainer>
         )}
@@ -343,6 +364,47 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
                 />
               </div>
             </>
+          )}
+
+          {vitalType === 'WEIGHT' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Body Weight (kg) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="1"
+                  max="400"
+                  required
+                  placeholder="e.g. 68.5"
+                  value={weightKg}
+                  onChange={(e) => setWeightKg(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">Acceptable range: 1.0 – 400.0 kg</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Height (cm) <span className="text-slate-400 font-normal">(Optional, for BMI calculation)</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="30"
+                  max="300"
+                  placeholder={summary?.weight?.latest?.height_cm ? `Current: ${summary.weight.latest.height_cm} cm` : 'e.g. 172'}
+                  value={heightCm}
+                  onChange={(e) => setHeightCm(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Entering height updates your profile and calculates Body Mass Index (BMI).
+                </p>
+              </div>
+            </div>
           )}
 
           <div className="flex justify-end space-x-2 pt-4">

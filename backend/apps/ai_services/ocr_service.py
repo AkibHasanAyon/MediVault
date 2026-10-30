@@ -1,4 +1,5 @@
 import os
+import io
 import base64
 import logging
 from pathlib import Path
@@ -10,12 +11,11 @@ logger = logging.getLogger('medivault.ocr')
 
 class OCRService:
     """
-    Google Cloud Vision OCR Client with image preprocessing.
-    Supports:
-      1. GOOGLE_API_KEY (REST API image:annotate endpoint)
-      2. GOOGLE_APPLICATION_CREDENTIALS (GCP Service Account JSON)
-      3. Development Simulated Fallback (when no active credentials)
+    Google Cloud Vision OCR Client with image & multi-page PDF support.
     Extracts printed and handwritten Bengali/English medical text.
+    Handles:
+      1. Image files (.jpg, .png, .webp, .tiff) with contrast preprocessing
+      2. PDF files (.pdf) using pypdfium2 page rendering + Vision OCR per page
     """
 
     def __init__(self):
@@ -26,122 +26,164 @@ class OCRService:
         """Enhances contrast and converts color profile before passing to OCR."""
         try:
             path = Path(file_path)
-            if path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.webp']:
+            ext = path.suffix.lower()
+            if ext in ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.heic', '.heif']:
+                if ext in ['.heic', '.heif']:
+                    import pillow_heif
+                    pillow_heif.register_heif_opener()
+
                 with Image.open(file_path) as img:
                     if img.mode != 'RGB':
                         img = img.convert('RGB')
-                    # Slight contrast boost for faded thermal or carbon-copy paper
+                    # Contrast boost for faded thermal or carbon-copy paper
                     enhancer = ImageEnhance.Contrast(img)
                     enhanced_img = enhancer.enhance(1.2)
-                    preprocessed_path = str(path.parent / f"prep_{path.name}")
-                    enhanced_img.save(preprocessed_path, quality=95)
+                    preprocessed_path = str(path.parent / f"prep_{path.stem}.jpg")
+                    enhanced_img.save(preprocessed_path, format='JPEG', quality=95)
                     return preprocessed_path
         except Exception as e:
             logger.warning("Image preprocessing failed, proceeding with original: %s", str(e))
         return file_path
 
-    def extract_text_from_image(self, file_path: str) -> dict:
-        """
-        Executes Google Cloud Vision Document Text Detection.
-        Supports both direct API Key (REST endpoint) and Service Account credentials.
-        """
-        processed_path = self.preprocess_image(file_path)
+    def _ocr_image_bytes(self, image_bytes: bytes) -> str:
+        """Sends raw image bytes (JPEG/PNG) to Google Cloud Vision Document Text Detection."""
+        if not self.api_key:
+            logger.warning("GOOGLE_API_KEY is not configured.")
+            return ""
 
-        # 1. Official REST API endpoint with GOOGLE_API_KEY
-        if self.api_key:
-            try:
-                with open(processed_path, 'rb') as f:
-                    content_b64 = base64.b64encode(f.read()).decode('utf-8')
-
-                url = f"https://vision.googleapis.com/v1/images:annotate?key={self.api_key}"
-                payload = {
-                    "requests": [
-                        {
-                            "image": {"content": content_b64},
-                            "features": [{"type": "DOCUMENT_TEXT_DETECTION"}],
-                            "imageContext": {
-                                "languageHints": ["bn", "en"]
-                            }
+        try:
+            content_b64 = base64.b64encode(image_bytes).decode('utf-8')
+            url = f"https://vision.googleapis.com/v1/images:annotate?key={self.api_key}"
+            payload = {
+                "requests": [
+                    {
+                        "image": {"content": content_b64},
+                        "features": [{"type": "DOCUMENT_TEXT_DETECTION"}],
+                        "imageContext": {
+                            "languageHints": ["bn", "en"]
                         }
-                    ]
-                }
-                res = requests.post(url, json=payload, timeout=20)
-                if res.status_code == 200:
-                    data = res.json()
-                    responses = data.get("responses", [])
-                    if responses and "error" in responses[0]:
-                        err_msg = responses[0]["error"].get("message", "Unknown error")
-                        logger.error("GCP Vision REST error: %s", err_msg)
-                        raise RuntimeError(f"GCP Vision error: {err_msg}")
-
-                    text = ""
-                    if responses:
-                        full_text = responses[0].get("fullTextAnnotation", {})
-                        text = full_text.get("text", "")
-                        if not text and "textAnnotations" in responses[0] and responses[0]["textAnnotations"]:
-                            text = responses[0]["textAnnotations"][0].get("description", "")
-
-                    if text.strip():
-                        logger.info("GCP Vision REST successfully extracted %d characters from %s", len(text), file_path)
-                        return {
-                            "raw_text": text,
-                            "provider": "GOOGLE_CLOUD_VISION_REST",
-                            "success": True
-                        }
-                else:
-                    logger.warning("GCP Vision REST returned HTTP %s: %s", res.status_code, res.text[:200])
-
-            except Exception as e:
-                logger.error("Failed to call GCP Vision REST API: %s", str(e))
-
-        # 2. Service Account Client (GOOGLE_APPLICATION_CREDENTIALS)
-        if self.credentials_path and os.path.exists(self.credentials_path):
-            try:
-                from google.cloud import vision
-                client = vision.ImageAnnotatorClient()
-
-                with open(processed_path, 'rb') as image_file:
-                    content = image_file.read()
-
-                image = vision.Image(content=content)
-                response = client.document_text_detection(image=image)
-
-                if response.error.message:
-                    logger.error("GCP Vision SDK returned error: %s", response.error.message)
-                    raise RuntimeError(f"GCP Vision error: {response.error.message}")
-
-                text = response.full_text_annotation.text if response.full_text_annotation else ""
-                if text.strip():
-                    logger.info("GCP Vision SDK successfully extracted %d characters from %s", len(text), file_path)
-                    return {
-                        "raw_text": text,
-                        "provider": "GOOGLE_CLOUD_VISION_SDK",
-                        "success": True
                     }
+                ]
+            }
+            res = requests.post(url, json=payload, timeout=25)
+            if res.status_code == 200:
+                data = res.json()
+                responses = data.get("responses", [])
+                if responses and "error" in responses[0]:
+                    err_msg = responses[0]["error"].get("message", "Unknown error")
+                    logger.error("GCP Vision REST error: %s", err_msg)
+                    return ""
 
+                if responses:
+                    full_text = responses[0].get("fullTextAnnotation", {})
+                    text = full_text.get("text", "")
+                    if not text and "textAnnotations" in responses[0] and responses[0]["textAnnotations"]:
+                        text = responses[0]["textAnnotations"][0].get("description", "")
+                    return text.strip()
+            else:
+                logger.warning("GCP Vision returned HTTP %s: %s", res.status_code, res.text[:200])
+
+        except Exception as e:
+            logger.error("Failed to call GCP Vision for image bytes: %s", str(e))
+
+        return ""
+
+    def _extract_from_pdf(self, file_path: str) -> dict:
+        """
+        Extracts text from multi-page PDFs:
+        1. Checks for digital text embedded in PDF.
+        2. Renders pages to images using pypdfium2 and runs Vision OCR.
+        """
+        combined_text = []
+
+        # 1. Check for embedded digital text via pypdf
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(file_path)
+            digital_pages = []
+            for i, page in enumerate(reader.pages):
+                pt = page.extract_text() or ""
+                if len(pt.strip()) > 50:
+                    digital_pages.append(f"--- PAGE {i+1} ---\n{pt.strip()}")
+            if digital_pages:
+                logger.info("Extracted embedded digital text from %d PDF pages", len(digital_pages))
+                combined_text.extend(digital_pages)
+        except Exception as e:
+            logger.debug("Digital text extraction failed or was empty: %s", str(e))
+
+        # 2. Render pages to images using pypdfium2 if digital text is minimal or for scanned PDFs
+        if not combined_text:
+            try:
+                import pypdfium2 as pdfium
+                pdf = pdfium.PdfDocument(file_path)
+                num_pages = min(len(pdf), 8)  # Process up to 8 pages to respect resource limits
+                logger.info("Rendering %d scanned PDF page(s) with pypdfium2 for OCR", num_pages)
+
+                for page_idx in range(num_pages):
+                    pil_image = pdf[page_idx].render(scale=1.5).to_pil()
+                    buf = io.BytesIO()
+                    pil_image.save(buf, format='JPEG', quality=90)
+                    page_ocr = self._ocr_image_bytes(buf.getvalue())
+                    if page_ocr:
+                        combined_text.append(f"--- PAGE {page_idx+1} ---\n{page_ocr}")
+
+                pdf.close()
             except Exception as e:
-                logger.error("Failed to call Google Cloud Vision SDK: %s", str(e))
+                logger.error("pypdfium2 PDF page rendering failed: %s", str(e))
 
-        # 3. Development Fallback: Simulated extraction
-        logger.warning(
-            "GCP Vision returned no text or is unconfigured. Using development simulated OCR extraction."
-        )
-        simulated_text = (
-            "Shapla Care Clinic, Dhanmondi, Dhaka\n"
-            "Date: 14-Aug-2026\n"
-            "Patient: Rahim Ahmed, Age: 45, Sex: Male\n"
-            "Rx:\n"
-            "1. Tab. Nexum 20mg - 1+0+1 - 30 days - Before Food\n"
-            "2. Tab. Metfo 500mg - 1+0+1 - 60 days - After Food\n"
-            "3. Tab. Seclo 20mg - 1+0+0 - 15 days - Before Breakfast\n"
-            "Investigations:\n"
-            "Fasting Blood Glucose: 6.4 mmol/L (Ref: 4.0 - 6.0)\n"
-            "HbA1c: 6.8% (Ref: < 5.7%)\n"
-            "Diagnosis: Type 2 Diabetes Mellitus with Dyspepsia\n"
-            "Advice: Low carb diet, brisk walk 30 mins daily. Review after 3 months."
-        )
+        final_text = "\n\n".join(combined_text).strip()
+        if final_text:
+            logger.info("Successfully extracted %d characters from PDF %s", len(final_text), file_path)
+            return {
+                "raw_text": final_text,
+                "provider": "GOOGLE_CLOUD_VISION_PDF",
+                "success": True
+            }
+
+        logger.warning("No text could be extracted from PDF %s", file_path)
         return {
-            "raw_text": simulated_text,
-            "provider": "DEV_SIMULATION",
-            "success": True
+            "raw_text": "",
+            "provider": "NONE",
+            "success": False
         }
+
+    def extract_text(self, file_path: str) -> dict:
+        """
+        Unified extraction method handling both images and PDFs.
+        Returns {"raw_text": str, "provider": str, "success": bool}.
+        """
+        if not os.path.exists(file_path):
+            logger.error("File does not exist at path: %s", file_path)
+            return {"raw_text": "", "provider": "NONE", "success": False}
+
+        path = Path(file_path)
+        suffix = path.suffix.lower()
+
+        # Handle PDF documents
+        if suffix == '.pdf':
+            return self._extract_from_pdf(file_path)
+
+        # Handle Image files
+        processed_path = self.preprocess_image(file_path)
+        try:
+            with open(processed_path, 'rb') as f:
+                img_bytes = f.read()
+            text = self._ocr_image_bytes(img_bytes)
+            if text:
+                return {
+                    "raw_text": text,
+                    "provider": "GOOGLE_CLOUD_VISION_REST",
+                    "success": True
+                }
+        except Exception as e:
+            logger.error("Image OCR failed for %s: %s", file_path, str(e))
+
+        return {
+            "raw_text": "",
+            "provider": "NONE",
+            "success": False
+        }
+
+    def extract_text_from_image(self, file_path: str) -> dict:
+        """Backward-compatible alias for existing tasks."""
+        return self.extract_text(file_path)

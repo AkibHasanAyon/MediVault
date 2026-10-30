@@ -27,6 +27,9 @@ export interface RegisterPayload {
   bmdc_number?: string;
   specialty?: string;
   phone_number?: string;
+  gender?: string;
+  blood_group?: string;
+  date_of_birth?: string;
 }
 
 export const authApi = {
