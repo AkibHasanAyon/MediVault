@@ -20,23 +20,40 @@ export interface AuthTokens {
   user: UserProfile;
 }
 
+export interface RegisterPayload {
+  email: string;
+  full_name: string;
+  role: 'PATIENT' | 'DOCTOR' | 'ASSISTANT';
+  bmdc_number?: string;
+  specialty?: string;
+  phone_number?: string;
+}
+
 export const authApi = {
-  requestOtp: async (phoneNumber: string) => {
-    const { data } = await apiClient.post('/auth/otp/request/', { phone_number: phoneNumber });
+  requestOtp: async (identifier: string) => {
+    const isEmail = identifier.includes('@');
+    const payload = isEmail ? { email: identifier } : { phone_number: identifier };
+    const { data } = await apiClient.post('/auth/otp/request/', payload);
     return data;
   },
 
-  verifyOtp: async (phoneNumber: string, otpCode: string): Promise<AuthTokens> => {
-    const { data } = await apiClient.post('/auth/otp/verify/', {
-      phone_number: phoneNumber,
-      otp_code: otpCode,
-    });
+  verifyOtp: async (identifier: string, otpCode: string): Promise<AuthTokens> => {
+    const isEmail = identifier.includes('@');
+    const payload = isEmail
+      ? { email: identifier, otp_code: otpCode }
+      : { phone_number: identifier, otp_code: otpCode };
+    const { data } = await apiClient.post('/auth/otp/verify/', payload);
+    return data.data ? data.data : data;
+  },
+
+  register: async (payload: RegisterPayload) => {
+    const { data } = await apiClient.post('/auth/register/', payload);
     return data;
   },
 
   getProfile: async (): Promise<UserProfile> => {
     const { data } = await apiClient.get('/auth/profile/');
-    return data;
+    return data.data ? data.data : data;
   },
 
   logout: async () => {
@@ -53,4 +70,3 @@ export const authApi = {
     localStorage.removeItem('user');
   },
 };
-

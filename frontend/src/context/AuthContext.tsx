@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UserProfile, authApi } from '../api/auth';
-import { apiClient } from '../api/client';
+import { UserProfile, RegisterPayload, authApi } from '../api/auth';
 
 interface AuthContextType {
   user: UserProfile | null;
   role: 'PATIENT' | 'DOCTOR' | 'ASSISTANT' | 'ADMIN' | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  loginWithOtp: (phone: string, otp: string) => Promise<void>;
+  loginWithOtp: (identifier: string, otp: string) => Promise<void>;
+  register: (payload: RegisterPayload) => Promise<void>;
   devLoginAs: (role: 'PATIENT' | 'DOCTOR' | 'ASSISTANT') => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -42,14 +42,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth();
   }, []);
 
-  const loginWithOtp = async (phone: string, otp: string) => {
+  const loginWithOtp = async (identifier: string, otp: string) => {
     setIsLoading(true);
     try {
-      const tokens = await authApi.verifyOtp(phone, otp);
-      localStorage.setItem('access_token', tokens.access);
-      localStorage.setItem('refresh_token', tokens.refresh);
-      localStorage.setItem('user', JSON.stringify(tokens.user));
-      setUser(tokens.user);
+      const tokens = await authApi.verifyOtp(identifier, otp);
+      if (tokens.access) {
+        localStorage.setItem('access_token', tokens.access);
+      }
+      if (tokens.refresh) {
+        localStorage.setItem('refresh_token', tokens.refresh);
+      }
+      if (tokens.user) {
+        localStorage.setItem('user', JSON.stringify(tokens.user));
+        setUser(tokens.user);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = async (payload: RegisterPayload) => {
+    setIsLoading(true);
+    try {
+      await authApi.register(payload);
     } finally {
       setIsLoading(false);
     }
@@ -58,33 +73,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const devLoginAs = async (targetRole: 'PATIENT' | 'DOCTOR' | 'ASSISTANT') => {
     setIsLoading(true);
     try {
-      // Dev role mapping
-      const phoneMap = {
-        PATIENT: '+8801711000011',
-        DOCTOR: '+8801711000002',
-        ASSISTANT: '+8801711000003',
+      const emailMap = {
+        PATIENT: 'patient@medivault.app',
+        DOCTOR: 'doctor@medivault.app',
+        ASSISTANT: 'assistant@medivault.app',
       };
-      const phone = phoneMap[targetRole];
+      const email = emailMap[targetRole];
 
-      // Request OTP
-      await authApi.requestOtp(phone);
-      // In dev environment, default dev OTP code is 123456 or dynamically generated
-      // Or we can request OTP and verify
-      try {
-        await loginWithOtp(phone, '123456');
-      } catch {
-        // Fallback simulated profile if offline dev without db otp
-        const simulated: UserProfile = {
-          id: 'dev-user-id',
-          phone_number: phone,
-          full_name: targetRole === 'DOCTOR' ? 'Dr. Rafiqul Islam' : targetRole === 'ASSISTANT' ? 'Fatima Akter' : 'Abdul Karim',
-          email: `${targetRole.toLowerCase()}@medivault.app`,
-          role: targetRole,
-          is_phone_verified: true,
-        };
-        localStorage.setItem('user', JSON.stringify(simulated));
-        setUser(simulated);
-      }
+      await authApi.requestOtp(email);
+      await loginWithOtp(email, '123456');
+    } catch {
+      // Fallback simulated profile if offline dev without db otp
+      const simulated: UserProfile = {
+        id: 'dev-user-id',
+        phone_number: targetRole === 'DOCTOR' ? '+8801711000002' : targetRole === 'ASSISTANT' ? '+8801711000003' : '+8801711000011',
+        full_name: targetRole === 'DOCTOR' ? 'Prof. Dr. M. A. Hasan' : targetRole === 'ASSISTANT' ? 'Fatima Akter' : 'Abdul Karim',
+        email: `${targetRole.toLowerCase()}@medivault.app`,
+        role: targetRole,
+        is_phone_verified: true,
+      };
+      localStorage.setItem('user', JSON.stringify(simulated));
+      setUser(simulated);
     } finally {
       setIsLoading(false);
     }
@@ -104,10 +113,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         user,
-        role: user?.role || null,
+        role: user ? user.role : null,
         isAuthenticated: !!user,
         isLoading,
         loginWithOtp,
+        register,
         devLoginAs,
         logout,
       }}
@@ -124,4 +134,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
