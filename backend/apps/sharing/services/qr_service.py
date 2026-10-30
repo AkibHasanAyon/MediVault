@@ -93,7 +93,7 @@ class QRSharingService:
         cache_key = f"qr_share_{token_hash}"
 
         # Fast path check in cache
-        cached_share_id = cache.get(cache_key)
+        _ = cache.get(cache_key)
 
         share = ConsultationShare.objects.select_related('patient__user', 'doctor__user').filter(
             token_hash=token_hash,

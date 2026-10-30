@@ -16,7 +16,6 @@ def dispatch_scheduled_medication_reminders():
     and dispatches multichannel notifications (email/push/SMS).
     """
     now = timezone.localtime()
-    current_time = now.time()
 
     # Match reminders in the current window (+/- 7.5 mins or matching hour and minute window)
     window_start = (now - timedelta(minutes=8)).time()

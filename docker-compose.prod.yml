@@ -1,0 +1,171 @@
+services:
+  # ----------------------------------------------------
+  # 1. PostgreSQL 16 Relational Database
+  # ----------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-medivault_prod}
+      POSTGRES_USER: ${POSTGRES_USER:-medivault_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-medivault_secure_pass_2026}
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-medivault_admin} -d ${POSTGRES_DB:-medivault_prod}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - medivault_prod_network
+
+  # ----------------------------------------------------
+  # 2. Redis 7 (Channels ASGI, Caching & Celery Broker)
+  # ----------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secure_pass_2026}
+    volumes:
+      - redisdata_prod:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secure_pass_2026}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - medivault_prod_network
+
+  # ----------------------------------------------------
+  # 3. ChromaDB Vector Store (RAG Embeddings)
+  # ----------------------------------------------------
+  chromadb:
+    image: chromadb/chroma:latest
+    restart: unless-stopped
+    volumes:
+      - chromadata_prod:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+      - ANONYMIZED_TELEMETRY=FALSE
+    networks:
+      - medivault_prod_network
+
+  # ----------------------------------------------------
+  # 4. Django ASGI Daphne Server (REST API & WebSockets)
+  # ----------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: daphne -b 0.0.0.0 -p 8000 config.asgi:application
+    volumes:
+      - media_prod:/app/media
+      - static_prod:/app/staticfiles
+      - logs_prod:/app/logs
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,backend,frontend}
+      - DATABASE_URL=postgres://${POSTGRES_USER:-medivault_admin}:${POSTGRES_PASSWORD:-medivault_secure_pass_2026}@postgres:5432/${POSTGRES_DB:-medivault_prod}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_secure_pass_2026}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-redis_secure_pass_2026}@redis:6379/1
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+      - MESSAGING_BACKEND=${MESSAGING_BACKEND:-email}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    networks:
+      - medivault_prod_network
+
+  # ----------------------------------------------------
+  # 5. Celery Worker (OCR, AI Extraction, PDF Generation)
+  # ----------------------------------------------------
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: celery -A config worker -l INFO -c 4 -Q celery,ocr,ai,reports
+    volumes:
+      - media_prod:/app/media
+      - logs_prod:/app/logs
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DATABASE_URL=postgres://${POSTGRES_USER:-medivault_admin}:${POSTGRES_PASSWORD:-medivault_secure_pass_2026}@postgres:5432/${POSTGRES_DB:-medivault_prod}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_secure_pass_2026}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-redis_secure_pass_2026}@redis:6379/1
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - medivault_prod_network
+
+  # ----------------------------------------------------
+  # 6. Celery Beat (Scheduled Reminders & Periodic Tasks)
+  # ----------------------------------------------------
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: celery -A config beat -l INFO
+    volumes:
+      - logs_prod:/app/logs
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DATABASE_URL=postgres://${POSTGRES_USER:-medivault_admin}:${POSTGRES_PASSWORD:-medivault_secure_pass_2026}@postgres:5432/${POSTGRES_DB:-medivault_prod}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_secure_pass_2026}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-redis_secure_pass_2026}@redis:6379/1
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - medivault_prod_network
+
+  # ----------------------------------------------------
+  # 7. Frontend SPA & Reverse Proxy (Nginx)
+  # ----------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+    networks:
+      - medivault_prod_network
+
+networks:
+  medivault_prod_network:
+    driver: bridge
+
+volumes:
+  pgdata_prod:
+  redisdata_prod:
+  chromadata_prod:
+  media_prod:
+  static_prod:
+  logs_prod:
+

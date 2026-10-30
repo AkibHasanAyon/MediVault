@@ -29,7 +29,7 @@ def generate_monthly_health_reports():
 
     for patient in patients:
         try:
-            report = MonthlyReportBuilder.generate_monthly_report(patient, target_year, target_month)
+            MonthlyReportBuilder.generate_monthly_report(patient, target_year, target_month)
             generated_count += 1
 
             # Dispatch notification
