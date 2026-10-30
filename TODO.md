@@ -11,10 +11,10 @@
 
 | Metric | Status |
 |---|---|
-| **Overall Project Completion** | **77%** (`7 / 9 Phases Complete` · `52 / 64 Tasks Done`) |
-| **Current Active Phase** | **Phase 8: React.js Prototype Frontend (Weeks 9–12)** |
+| **Overall Project Completion** | **89%** (`8 / 9 Phases Complete` · `58 / 64 Tasks Done`) |
+| **Current Active Phase** | **Phase 9: Testing, Security Hardening & Quality Gates (Weeks 13–14)** |
 | **Messaging Channel Mode** | `MESSAGING_BACKEND=email` (Zero-cost SMTP dev mode) |
-| **Next Actionable Task** | `T8.1: React 18 + Vite + TypeScript Scaffolding & Design System` |
+| **Next Actionable Task** | `T9.1: Pytest Test Suite Configuration & Model Factories` |
 
 ### 🗺️ 9-Phase Roadmap Alignment
 
@@ -29,7 +29,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
 | **5** | [Section 6](#phase-5-ai-clinical-intelligence-rag--monthly-reports-weeks-57) | ChromaDB RAG, Bilingual Bangla/English "Ask AI", Pre-Intake, 10-Sec Brief, WeasyPrint PDF | Weeks 5–7 | 7 | `COMPLETED` ✅ |
 | **6** | [Section 7](#phase-6-scoped-qr-consultation--digital-prescriptions-weeks-78) | 30-Min Ephemeral HMAC QR, Doctor Scanner, Digital Rx Canvas, Drug Interactions | Weeks 7–8 | 8 | `COMPLETED` ✅ |
 | **7** | [Section 8](#phase-7-real-time-chamber-queue-websockets-weeks-89) | Django Channels WebSocket, Live Queue Consumer, Assistant & Doctor Desk, Multi-Channel Serial Alerts | Weeks 8–9 | 6 | `COMPLETED` ✅ |
-| **8** | [Section 9](#phase-8-reactjs-prototype-frontend-weeks-912) | React 18 + Vite + Tailwind, 3 Role Portals (Patient, Doctor, Assistant), WebSockets | Weeks 9–12 | 6 | `PENDING` |
+| **8** | [Section 9](#phase-8-reactjs-prototype-frontend-weeks-912) | React 18 + Vite + Tailwind, 3 Role Portals (Patient, Doctor, Assistant), WebSockets | Weeks 9–12 | 6 | `COMPLETED` ✅ |
 | **9** | [Section 10 & 11](#phase-9-testing-security-hardening--quality-gates-weeks-1314) | Pytest Suite ($\ge 80\%$ Coverage), Celery/Channels Tests, Security Audit, Quality Gates | Weeks 13–14 | 7 | `PENDING` |
 
 ---
@@ -486,7 +486,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
 
 **Implementation Guide Reference:** [docs/Implementation.md § 9](file:///c:/Users/User/Desktop/Medivault%20resources/MediVault/docs/Implementation.md#9-phase-8-reactjs-prototype-frontend-weeks-912)
 
-- [ ] **Task 8.1: React 18 + Vite + TypeScript Scaffolding & Design System**
+- [x] **Task 8.1: React 18 + Vite + TypeScript Scaffolding & Design System**
   - Initialize React 18 + Vite + TypeScript in `/frontend`.
   - Install dependencies: `tailwindcss`, `lucide-react`, `recharts`, `axios`, `react-router-dom`, `@tanstack/react-query`, `qrcode.react`.
   - Configure MediVault color tokens (`#087E8B`, `#16324F`, `#2A9D8F`, `#E76F51`, `#F4A261`).
@@ -494,14 +494,14 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `frontend/package.json`, `frontend/tailwind.config.js`, `frontend/src/index.css`
   - *Verification:* `npm run dev` starts Vite development server on `http://localhost:3000`.
 
-- [ ] **Task 8.2: Role-Based Routing & Axios JWT Interceptor**
+- [x] **Task 8.2: Role-Based Routing & Axios JWT Interceptor**
   - Implement Axios interceptor for JWT automatic access token attachment and refresh flow.
   - Build protected routes: `/patient/*`, `/doctor/*`, `/assistant/*`.
   - Implement sign-in, OTP verification, and role switcher UI.
   - *Target Files:* `frontend/src/api/client.ts`, `frontend/src/routes/AppRoutes.tsx`, `frontend/src/context/AuthContext.tsx`
   - *Verification:* Logging in as Doctor redirects to Doctor Chamber Desk; direct access to Patient routes is blocked.
 
-- [ ] **Task 8.3: Patient Webapp Implementation**
+- [x] **Task 8.3: Patient Webapp Implementation**
   - Health Log cards (Glucose, BP, Weight) with Recharts 90-day time-series graphs.
   - Document Vault: Camera / file upload modal, timeline feed, side-by-side OCR extraction review.
   - Medication reminder cards with "Taken" / "Skip" toggles and adherence progress ring.
@@ -510,7 +510,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `frontend/src/pages/patient/*`, `frontend/src/components/patient/*`
   - *Verification:* Uploading document renders in timeline; clicking Ask AI returns cited streaming answer.
 
-- [ ] **Task 8.4: Doctor Chamber Desk Implementation**
+- [x] **Task 8.4: Doctor Chamber Desk Implementation**
   - Live Chamber Queue sidebar synchronized via WebSocket.
   - Ephemeral QR scanner component unlocking patient records.
   - 10-Second Pre-Consultation Brief panel (vitals averages, danger history, active meds).
@@ -518,7 +518,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `frontend/src/pages/doctor/*`, `frontend/src/components/doctor/*`
   - *Verification:* Scanning test QR opens patient brief; prescribing interacting drug triggers warning dialog.
 
-- [ ] **Task 8.5: Clinic Assistant Desk Implementation**
+- [x] **Task 8.5: Clinic Assistant Desk Implementation**
   - Walk-in patient registration form (phone lookup, name, doctor selection).
   - Sequential token generator with live wait-time counter.
   - Live queue board table with 1-click status actions ("Call In", "Done", "Skip").
@@ -526,7 +526,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `frontend/src/pages/assistant/*`, `frontend/src/components/assistant/*`
   - *Verification:* Adding walk-in patient immediately updates queue table and increments token count.
 
-- [ ] **Task 8.6: Responsive UI & Localization (Noto Sans Bengali)**
+- [x] **Task 8.6: Responsive UI & Localization (Noto Sans Bengali)**
   - Ensure mobile viewport responsiveness across all screens.
   - Implement language switcher (English $\leftrightarrow$ Bangla).
   - Maintain clinical units in English for medical safety.
