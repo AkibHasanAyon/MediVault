@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { Activity, Plus, AlertCircle, Heart, Scale } from 'lucide-react';
-import { vitalsApi, VitalsSummary } from '../../api/vitals';
+import { Activity, Plus, Heart, Scale } from 'lucide-react';
+import { vitalsApi, VitalsSummary, GlucoseLog, BloodPressureLog } from '../../api/vitals';
 import { Modal } from '../common/Modal';
 
 interface VitalsDashboardProps {
@@ -9,9 +9,17 @@ interface VitalsDashboardProps {
   onRefresh: () => void;
 }
 
+interface TrendPoint {
+  date: string;
+  glucose?: number;
+  systolic?: number;
+  diastolic?: number;
+}
+
 export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRefresh }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [vitalType, setVitalType] = useState<'GLUCOSE' | 'BP' | 'WEIGHT'>('GLUCOSE');
+  const [trendData, setTrendData] = useState<TrendPoint[]>([]);
 
   // Form states
   const [glucoseVal, setGlucoseVal] = useState('');
@@ -21,6 +29,42 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
   const [pulse, setPulse] = useState('');
   const [weightKg, setWeightKg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch real logs to render chronological trend
+  const fetchTrendData = async () => {
+    try {
+      const [glucoseRes, bpRes] = await Promise.all([
+        vitalsApi.getGlucoseLogs(10).catch(() => [] as GlucoseLog[]),
+        vitalsApi.getBPLogs(10).catch(() => [] as BloodPressureLog[]),
+      ]);
+
+      const dateMap = new Map<string, TrendPoint>();
+
+      (glucoseRes || []).forEach((g) => {
+        const d = new Date(g.recorded_at).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
+        const existing = dateMap.get(d) || { date: d };
+        existing.glucose = g.glucose_value_mmol;
+        dateMap.set(d, existing);
+      });
+
+      (bpRes || []).forEach((b) => {
+        const d = new Date(b.recorded_at).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
+        const existing = dateMap.get(d) || { date: d };
+        existing.systolic = b.systolic_mmHg;
+        existing.diastolic = b.diastolic_mmHg;
+        dateMap.set(d, existing);
+      });
+
+      const points = Array.from(dateMap.values());
+      setTrendData(points);
+    } catch {
+      setTrendData([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchTrendData();
+  }, [summary]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,22 +88,17 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
         });
       }
       setIsModalOpen(false);
+      setGlucoseVal('');
+      setSystolic('');
+      setDiastolic('');
+      setPulse('');
+      setWeightKg('');
       onRefresh();
+      fetchTrendData();
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  // Mock trend data for visualization
-  const trendData = [
-    { date: '10/24', glucose: 5.4, systolic: 120, diastolic: 80 },
-    { date: '10/25', glucose: 6.1, systolic: 125, diastolic: 82 },
-    { date: '10/26', glucose: 5.8, systolic: 118, diastolic: 78 },
-    { date: '10/27', glucose: 7.2, systolic: 130, diastolic: 85 },
-    { date: '10/28', glucose: 5.5, systolic: 122, diastolic: 80 },
-    { date: '10/29', glucose: 5.9, systolic: 124, diastolic: 81 },
-    { date: '10/30', glucose: summary?.glucose.latest?.glucose_value_mmol || 6.0, systolic: summary?.blood_pressure.latest?.systolic_mmHg || 120, diastolic: summary?.blood_pressure.latest?.diastolic_mmHg || 80 },
-  ];
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
@@ -87,6 +126,13 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
             <Plus className="w-3.5 h-3.5" />
             <span>Log BP</span>
           </button>
+          <button
+            onClick={() => { setVitalType('WEIGHT'); setIsModalOpen(true); }}
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold hover:bg-slate-100 transition"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Log Weight</span>
+          </button>
         </div>
       </div>
 
@@ -96,18 +142,23 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
         <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
           <div className="flex items-center justify-between text-slate-500 text-xs font-medium mb-1">
             <span>Blood Glucose</span>
-            <span className="text-[10px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full">
-              {summary?.glucose.latest?.context || 'Fasting'}
-            </span>
+            {summary?.glucose.latest && (
+              <span className="text-[10px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full">
+                {summary.glucose.latest.context}
+              </span>
+            )}
           </div>
           <div className="flex items-baseline space-x-2">
             <span className="text-3xl font-extrabold text-slate-900">
-              {summary?.glucose.latest?.glucose_value_mmol ?? '5.4'}
+              {summary?.glucose.latest?.glucose_value_mmol ?? '--'}
             </span>
             <span className="text-xs text-slate-500 font-semibold">mmol/L</span>
           </div>
           <p className="text-[11px] text-slate-500 mt-2">
-            90-Day Avg: <strong className="text-slate-700">{summary?.glucose.avg_90_days ?? '5.8'} mmol/L</strong>
+            90-Day Avg:{' '}
+            <strong className="text-slate-700">
+              {summary?.glucose.avg_90_days ? `${summary.glucose.avg_90_days} mmol/L` : 'No logs'}
+            </strong>
           </p>
         </div>
 
@@ -118,18 +169,27 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
               <Heart className="w-3.5 h-3.5 text-rose-500" />
               <span>Blood Pressure</span>
             </span>
-            <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">
-              {summary?.blood_pressure.latest?.pulse_bpm ? `${summary.blood_pressure.latest.pulse_bpm} bpm` : 'Normal'}
-            </span>
+            {summary?.blood_pressure.latest?.pulse_bpm && (
+              <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">
+                {summary.blood_pressure.latest.pulse_bpm} bpm
+              </span>
+            )}
           </div>
           <div className="flex items-baseline space-x-2">
             <span className="text-3xl font-extrabold text-slate-900">
-              {summary?.blood_pressure.latest ? `${summary.blood_pressure.latest.systolic_mmHg}/${summary.blood_pressure.latest.diastolic_mmHg}` : '120/80'}
+              {summary?.blood_pressure.latest
+                ? `${summary.blood_pressure.latest.systolic_mmHg}/${summary.blood_pressure.latest.diastolic_mmHg}`
+                : '--/--'}
             </span>
             <span className="text-xs text-slate-500 font-semibold">mmHg</span>
           </div>
           <p className="text-[11px] text-slate-500 mt-2">
-            90-Day Avg: <strong className="text-slate-700">{summary?.blood_pressure.avg_systolic_90_days ?? '122'}/{summary?.blood_pressure.avg_diastolic_90_days ?? '81'}</strong>
+            90-Day Avg:{' '}
+            <strong className="text-slate-700">
+              {summary?.blood_pressure.avg_systolic_90_days && summary?.blood_pressure.avg_diastolic_90_days
+                ? `${summary.blood_pressure.avg_systolic_90_days}/${summary.blood_pressure.avg_diastolic_90_days}`
+                : 'No logs'}
+            </strong>
           </p>
         </div>
 
@@ -140,36 +200,70 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
               <Scale className="w-3.5 h-3.5 text-medivault-primary" />
               <span>Weight & BMI</span>
             </span>
-            <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-              Normal
-            </span>
+            {summary?.weight.latest?.bmi_category && (
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                {summary.weight.latest.bmi_category}
+              </span>
+            )}
           </div>
           <div className="flex items-baseline space-x-2">
             <span className="text-3xl font-extrabold text-slate-900">
-              {summary?.weight.latest?.weight_kg ?? '68.5'}
+              {summary?.weight.latest?.weight_kg ?? '--'}
             </span>
             <span className="text-xs text-slate-500 font-semibold">kg</span>
-            <span className="text-xs text-slate-400">| BMI {summary?.weight.current_bmi ?? '23.4'}</span>
+            {summary?.weight.current_bmi && (
+              <span className="text-xs text-slate-400">| BMI {summary.weight.current_bmi}</span>
+            )}
           </div>
-          <p className="text-[11px] text-slate-500 mt-2">Height: 171 cm</p>
+          <p className="text-[11px] text-slate-500 mt-2">
+            {summary?.weight.latest?.height_cm
+              ? `Height: ${summary.weight.latest.height_cm} cm`
+              : 'No weight logged'}
+          </p>
         </div>
       </div>
 
-      {/* Trend Graph */}
+      {/* Trend Graph or Empty State */}
       <div className="h-64 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={trendData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-            <XAxis dataKey="date" stroke="#94A3B8" fontSize={12} tickLine={false} />
-            <YAxis stroke="#94A3B8" fontSize={12} tickLine={false} domain={[0, 'auto']} />
-            <Tooltip
-              contentStyle={{ backgroundColor: '#1E293B', borderRadius: '8px', color: '#FFF', border: 'none' }}
-              labelStyle={{ fontWeight: 'bold', marginBottom: '4px' }}
-            />
-            <Line type="monotone" dataKey="glucose" stroke="#087E8B" strokeWidth={3} dot={{ r: 4 }} name="Glucose (mmol/L)" />
-            <Line type="monotone" dataKey="systolic" stroke="#E76F51" strokeWidth={2} dot={{ r: 3 }} name="Systolic (mmHg)" />
-          </LineChart>
-        </ResponsiveContainer>
+        {trendData.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-xl text-center p-6 bg-slate-50/50">
+            <Activity className="w-8 h-8 text-slate-300 mb-2" />
+            <p className="text-sm font-semibold text-slate-600">No Vitals History Yet</p>
+            <p className="text-xs text-slate-400 mt-1 max-w-sm">
+              Log your blood glucose, blood pressure, or weight above to begin generating your clinical trend chart.
+            </p>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={trendData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+              <XAxis dataKey="date" stroke="#94A3B8" fontSize={12} tickLine={false} />
+              <YAxis stroke="#94A3B8" fontSize={12} tickLine={false} domain={[0, 'auto']} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1E293B', borderRadius: '8px', color: '#FFF', border: 'none' }}
+                labelStyle={{ fontWeight: 'bold', marginBottom: '4px' }}
+              />
+              <Line
+                type="monotone"
+                dataKey="glucose"
+                stroke="#087E8B"
+                strokeWidth={3}
+                dot={{ r: 4 }}
+                name="Glucose (mmol/L)"
+                connectNulls
+              />
+              <Line
+                type="monotone"
+                dataKey="systolic"
+                stroke="#E76F51"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                name="Systolic (mmHg)"
+                connectNulls
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* Log Modal */}

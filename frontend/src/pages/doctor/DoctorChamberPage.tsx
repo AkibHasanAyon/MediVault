@@ -17,7 +17,7 @@ export const DoctorChamberPage: React.FC = () => {
   const [patientBrief, setPatientBrief] = useState<any>(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
-  const clinicId = user?.clinic_id || 'popular-dhanmondi-id';
+  const clinicId = user?.clinic_id || '3d59ae1c-4de1-43df-a4af-45613d8e0ff9';
   const doctorId = user?.doctor_profile_id;
 
   const loadQueue = async () => {
@@ -28,22 +28,7 @@ export const DoctorChamberPage: React.FC = () => {
         setSelectedEntry(data.current_patient);
       }
     } catch {
-      // Mock queue if backend offline
-      setQueueData({
-        success: true,
-        date: new Date().toISOString().split('T')[0],
-        doctor_name: user?.full_name || 'Dr. Rafiqul Islam',
-        current_patient: null,
-        called_patient: null,
-        next_waiting: [],
-        stats: {
-          total_registered: 0,
-          waiting_count: 0,
-          in_consultation: 0,
-          completed_count: 0,
-          skipped_count: 0,
-        },
-      });
+      setQueueData(null);
     }
   };
 
@@ -149,11 +134,20 @@ export const DoctorChamberPage: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           <PatientBriefCard brief={patientBrief} />
 
-          <PrescriptionCanvas
-            patientId={selectedEntry?.patient || 'sample-patient-id'}
-            patientName={selectedEntry?.patient_name || patientBrief?.patient_name || 'Walk-in Patient'}
-            onSuccess={() => loadQueue()}
-          />
+          {selectedEntry ? (
+            <PrescriptionCanvas
+              patientId={selectedEntry.patient}
+              patientName={selectedEntry.patient_name || patientBrief?.patient_name || 'Patient'}
+              onSuccess={() => loadQueue()}
+            />
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400">
+              <p className="text-sm font-semibold text-slate-600">Prescription Canvas Inactive</p>
+              <p className="text-xs text-slate-400 mt-1">
+                Select or call a patient from the chamber queue to open the digital prescription pad.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

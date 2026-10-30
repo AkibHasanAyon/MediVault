@@ -14,8 +14,8 @@ export const AssistantDeskPage: React.FC = () => {
   const [summary, setSummary] = useState<DailyQueueSummary | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const clinicId = user?.clinic_id || 'sample-clinic-id';
-  const doctorId = 'sample-doctor-id';
+  const clinicId = user?.clinic_id || '3d59ae1c-4de1-43df-a4af-45613d8e0ff9';
+  const doctorId = '1449b8cf-f904-4867-86f7-b616ace4bda8';
 
   const loadData = async () => {
     try {
@@ -23,50 +23,11 @@ export const AssistantDeskPage: React.FC = () => {
         queueApi.getTodayQueue(clinicId),
         queueApi.getDailySummary(clinicId),
       ]);
-      setEntries(queueRes);
+      setEntries(queueRes || []);
       setSummary(sumRes);
     } catch {
-      // Mock queue entries for initial view
-      setEntries([
-        {
-          id: '1',
-          clinic: clinicId,
-          clinic_name: 'Popular Diagnostic Center',
-          doctor: doctorId,
-          doctor_name: 'Prof. Dr. Rafiqul Islam',
-          doctor_specialties: 'Cardiology',
-          patient: 'p1',
-          patient_name: 'Abdul Karim',
-          patient_phone: '01711000011',
-          token_number: 1,
-          token_display: 'A-001',
-          queue_date: new Date().toISOString().split('T')[0],
-          state: 'CALLED_IN',
-          estimated_wait_minutes: 0,
-          called_at: new Date().toISOString(),
-          completed_at: null,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: '2',
-          clinic: clinicId,
-          clinic_name: 'Popular Diagnostic Center',
-          doctor: doctorId,
-          doctor_name: 'Prof. Dr. Rafiqul Islam',
-          doctor_specialties: 'Cardiology',
-          patient: 'p2',
-          patient_name: 'Nasreen Sultana',
-          patient_phone: '01711000012',
-          token_number: 2,
-          token_display: 'A-002',
-          queue_date: new Date().toISOString().split('T')[0],
-          state: 'WAITING',
-          estimated_wait_minutes: 7,
-          called_at: null,
-          completed_at: null,
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      setEntries([]);
+      setSummary(null);
     }
   };
 
@@ -143,7 +104,7 @@ export const AssistantDeskPage: React.FC = () => {
               Avg. Patient Wait
             </span>
             <span className="text-2xl font-black text-slate-900 mt-1 block">
-              {summary?.metrics?.avg_wait_minutes ?? 14} <span className="text-xs font-normal text-slate-400">mins</span>
+              {summary?.metrics?.avg_wait_minutes ?? 0} <span className="text-xs font-normal text-slate-400">mins</span>
             </span>
             <span className="text-[11px] text-slate-400">Lobby Arrival to Call</span>
           </div>

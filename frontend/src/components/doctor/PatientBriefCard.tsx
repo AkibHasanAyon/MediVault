@@ -35,9 +35,13 @@ export const PatientBriefCard: React.FC<PatientBriefCardProps> = ({ brief }) => 
         <div>
           <div className="flex items-center space-x-2">
             <h3 className="text-lg font-bold text-medivault-navy">{brief.patient_name}</h3>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-              {brief.patient_gender || 'Male'} • {brief.patient_age || 42}y
-            </span>
+            {(brief.patient_gender || brief.patient_age) && (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                {[brief.patient_gender, brief.patient_age ? `${brief.patient_age}y` : null]
+                  .filter(Boolean)
+                  .join(' • ')}
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-400 mt-0.5">{brief.patient_phone}</p>
         </div>
@@ -55,7 +59,7 @@ export const PatientBriefCard: React.FC<PatientBriefCardProps> = ({ brief }) => 
             90-Day Glucose Avg
           </span>
           <span className="text-lg font-extrabold text-slate-900 mt-0.5 block">
-            {brief.avg_glucose ? `${brief.avg_glucose} mmol/L` : '5.8 mmol/L'}
+            {brief.avg_glucose ? `${brief.avg_glucose} mmol/L` : '--'}
           </span>
         </div>
         <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
@@ -63,7 +67,7 @@ export const PatientBriefCard: React.FC<PatientBriefCardProps> = ({ brief }) => 
             90-Day BP Avg
           </span>
           <span className="text-lg font-extrabold text-slate-900 mt-0.5 block">
-            {brief.avg_bp || '122/81 mmHg'}
+            {brief.avg_bp || '--'}
           </span>
         </div>
         <div className={`p-3 rounded-xl border ${brief.danger_incidents > 0 ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-slate-50 border-slate-100 text-slate-800'}`}>
@@ -91,20 +95,9 @@ export const PatientBriefCard: React.FC<PatientBriefCardProps> = ({ brief }) => 
               </li>
             ))
           ) : (
-            <>
-              <li className="flex items-start space-x-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-600 mt-1.5 shrink-0" />
-                <span>Type-2 Diabetic under Metformin therapy with stable fasting glucose.</span>
-              </li>
-              <li className="flex items-start space-x-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-600 mt-1.5 shrink-0" />
-                <span>Stage-1 Hypertension controlled on ACE inhibitors; no crisis in 60 days.</span>
-              </li>
-              <li className="flex items-start space-x-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-600 mt-1.5 shrink-0" />
-                <span>Adherence to prescribed regimen reported at 94% over preceding month.</span>
-              </li>
-            </>
+            <li className="text-xs text-slate-400 italic">
+              No historical trajectory notes synthesized yet for this patient.
+            </li>
           )}
         </ul>
       </div>

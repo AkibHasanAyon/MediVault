@@ -32,7 +32,7 @@ export const MedicationTodayCard: React.FC<MedicationTodayCardProps> = ({ schedu
         <div className="flex items-center space-x-2 bg-teal-50 px-3 py-1.5 rounded-xl border border-teal-100">
           <ShieldCheck className="w-4 h-4 text-medivault-primary" />
           <span className="text-xs font-bold text-medivault-primary">
-            {scheduleData?.adherence_percentage ?? 100}% Adherence
+            {scheduleData?.adherence_percentage !== undefined ? `${scheduleData.adherence_percentage}% Adherence` : '--% Adherence'}
           </span>
         </div>
       </div>

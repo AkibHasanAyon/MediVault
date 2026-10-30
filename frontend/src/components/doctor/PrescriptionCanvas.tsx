@@ -13,25 +13,15 @@ export const PrescriptionCanvas: React.FC<PrescriptionCanvasProps> = ({
   patientName,
   onSuccess,
 }) => {
-  const [complaints, setComplaints] = useState('Fever for 3 days, mild dry cough');
-  const [findings, setFindings] = useState('BP: 120/80 mmHg, Chest: Clear, Temp: 99.4 F');
-  const [diagnoses, setDiagnoses] = useState('Viral Upper Respiratory Infection, Type-2 Diabetes');
-  const [advice, setAdvice] = useState('Drink plenty of warm fluids. Continue current diabetic meds. Rest for 3 days.');
+  const [complaints, setComplaints] = useState('');
+  const [findings, setFindings] = useState('');
+  const [diagnoses, setDiagnoses] = useState('');
+  const [advice, setAdvice] = useState('');
   const [followUpDays, setFollowUpDays] = useState(7);
   const [overrideNotes, setOverrideNotes] = useState('');
 
   // Medicines List
-  const [medications, setMedications] = useState<PrescribedMedicine[]>([
-    {
-      brand_name: 'Napa Extend',
-      generic_name: 'Paracetamol',
-      strength: '665mg',
-      dosage_form: 'Tablet',
-      schedule_pattern: '1+0+1',
-      instructions: 'After meal for fever',
-      duration_days: 5,
-    },
-  ]);
+  const [medications, setMedications] = useState<PrescribedMedicine[]>([]);
 
   // Drug Interaction State
   const [interactionResult, setInteractionResult] = useState<DrugInteractionResult | null>(null);
@@ -175,6 +165,7 @@ export const PrescriptionCanvas: React.FC<PrescriptionCanvasProps> = ({
               <textarea
                 rows={3}
                 value={complaints}
+                placeholder="e.g. Fever for 3 days, cough..."
                 onChange={(e) => setComplaints(e.target.value)}
                 className="w-full p-2.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-teal-500 focus:outline-none"
               />
@@ -185,6 +176,7 @@ export const PrescriptionCanvas: React.FC<PrescriptionCanvasProps> = ({
               <textarea
                 rows={2}
                 value={findings}
+                placeholder="e.g. BP: 120/80 mmHg, Chest: Clear, Temp: 98.4 F..."
                 onChange={(e) => setFindings(e.target.value)}
                 className="w-full p-2.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-teal-500 focus:outline-none"
               />
@@ -195,6 +187,7 @@ export const PrescriptionCanvas: React.FC<PrescriptionCanvasProps> = ({
               <input
                 type="text"
                 value={diagnoses}
+                placeholder="e.g. Essential Hypertension, Type-2 Diabetes..."
                 onChange={(e) => setDiagnoses(e.target.value)}
                 className="w-full p-2.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-teal-500 focus:outline-none"
               />
@@ -217,7 +210,21 @@ export const PrescriptionCanvas: React.FC<PrescriptionCanvasProps> = ({
 
             {/* Medicines List */}
             <div className="space-y-3">
-              {medications.map((med, idx) => (
+              {medications.length === 0 ? (
+                <div className="p-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-slate-400">
+                  <p className="text-xs font-semibold text-slate-600">No Medications Prescribed Yet</p>
+                  <p className="text-[11px] text-slate-400 mt-1 mb-3">Click below to add medications to this prescription.</p>
+                  <button
+                    type="button"
+                    onClick={addMedicine}
+                    className="inline-flex items-center space-x-1 px-3 py-1.5 bg-teal-50 text-medivault-primary border border-teal-200 rounded-lg text-xs font-bold hover:bg-teal-100 transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add First Medicine</span>
+                  </button>
+                </div>
+              ) : (
+                medications.map((med, idx) => (
                 <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                   <div className="grid grid-cols-3 gap-2">
                     <input
@@ -289,7 +296,7 @@ export const PrescriptionCanvas: React.FC<PrescriptionCanvasProps> = ({
                     </div>
                   </div>
                 </div>
-              ))}
+              )))}
             </div>
 
             {/* General Advice & Follow-Up */}
@@ -299,6 +306,7 @@ export const PrescriptionCanvas: React.FC<PrescriptionCanvasProps> = ({
                 <input
                   type="text"
                   value={advice}
+                  placeholder="e.g. Drink plenty of fluids, continue diabetic medications, rest..."
                   onChange={(e) => setAdvice(e.target.value)}
                   className="w-full p-2.5 text-xs border border-slate-300 rounded-lg"
                 />

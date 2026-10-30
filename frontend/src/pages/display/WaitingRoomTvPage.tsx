@@ -14,35 +14,7 @@ export const WaitingRoomTvPage: React.FC = () => {
       const data = await queueApi.getClinicDisplay(clinicId);
       setDisplayData(data);
     } catch {
-      // Offline fallback mock data
-      setDisplayData({
-        success: true,
-        clinic_name: 'Popular Diagnostic Center',
-        branch: 'Dhanmondi Branch',
-        date: new Date().toISOString().split('T')[0],
-        chambers: [
-          {
-            doctor_id: 'doc-1',
-            doctor_name: 'Prof. Dr. Rafiqul Islam',
-            specialties: 'Cardiology & Medicine',
-            chamber_number: 'Room 304',
-            current_token: 'A-002',
-            current_state: 'CALLED_IN',
-            upcoming_tokens: ['A-003', 'A-004', 'A-005'],
-            waiting_count: 5,
-          },
-          {
-            doctor_id: 'doc-2',
-            doctor_name: 'Dr. Farhana Ahmed',
-            specialties: 'Endocrinology & Diabetology',
-            chamber_number: 'Room 305',
-            current_token: 'B-008',
-            current_state: 'IN_CHAMBER',
-            upcoming_tokens: ['B-009', 'B-010', 'B-011'],
-            waiting_count: 3,
-          },
-        ],
-      });
+      setDisplayData(null);
     }
   };
 
@@ -90,61 +62,76 @@ export const WaitingRoomTvPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Display Grid: Large Chamber Cards */}
-      <main className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-8 my-8 items-stretch">
-        {displayData?.chambers.map((chamber) => (
-          <div
-            key={chamber.doctor_id}
-            className="bg-slate-900/90 rounded-3xl border-2 border-slate-800 p-8 flex flex-col justify-between shadow-2xl relative overflow-hidden"
-          >
-            {/* Chamber Indicator Bar */}
-            <div className="flex items-start justify-between">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-widest text-teal-400 bg-teal-950/80 px-3 py-1 rounded-full border border-teal-800">
-                  {chamber.chamber_number}
-                </span>
-                <h2 className="text-2xl font-black text-white mt-3 leading-tight">
-                  {chamber.doctor_name}
-                </h2>
-                <p className="text-sm text-slate-400 font-medium">{chamber.specialties}</p>
-              </div>
-            </div>
-
-            {/* Huge Serving Token */}
-            <div className="my-8 py-8 bg-slate-950/80 rounded-2xl border border-slate-800/80 flex flex-col items-center justify-center text-center">
-              <span className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-2">
-                NOW CONSULTING / বর্তমান সিরিয়াল
-              </span>
-              <div className="text-7xl sm:text-8xl font-black font-mono text-emerald-400 tracking-wider animate-pulse">
-                {chamber.current_token}
-              </div>
-              <span className="text-xs font-bold mt-2 text-teal-300 uppercase tracking-widest">
-                {chamber.current_state}
-              </span>
-            </div>
-
-            {/* Upcoming Tokens Row */}
-            <div className="pt-4 border-t border-slate-800/80">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-bold uppercase tracking-wider mb-3">
-                <span className="flex items-center space-x-1.5">
-                  <Clock className="w-4 h-4 text-slate-500" />
-                  <span>NEXT IN LINE / পরবর্তী সিরিয়াল:</span>
-                </span>
-                <span className="text-slate-500 font-normal">{chamber.waiting_count} waiting</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                {chamber.upcoming_tokens.map((tok, idx) => (
-                  <div
-                    key={idx}
-                    className="flex-1 py-3 bg-slate-800/60 border border-slate-700/60 rounded-xl text-center font-mono font-bold text-lg text-slate-200"
-                  >
-                    {tok}
-                  </div>
-                ))}
-              </div>
-            </div>
+      {/* Main Display Grid: Large Chamber Cards or Empty Waiting Room */}
+      <main className="flex-1 my-8 flex items-center justify-center">
+        {!displayData?.chambers || displayData.chambers.length === 0 ? (
+          <div className="bg-slate-900/60 rounded-3xl border border-slate-800 p-12 text-center max-w-lg mx-auto">
+            <Tv className="w-16 h-16 text-slate-600 mx-auto mb-4 animate-pulse" />
+            <h2 className="text-2xl font-bold text-slate-300">No Active Chamber Consultations</h2>
+            <p className="text-sm text-slate-500 mt-2">
+              There are currently no active consultation queues or doctor sessions registered for this clinic today.
+            </p>
+            <p className="text-xs text-teal-400 mt-4">
+              Waiting room display will update automatically in real-time when a doctor begins consultations.
+            </p>
           </div>
-        ))}
+        ) : (
+          <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
+            {displayData.chambers.map((chamber) => (
+              <div
+                key={chamber.doctor_id}
+                className="bg-slate-900/90 rounded-3xl border-2 border-slate-800 p-8 flex flex-col justify-between shadow-2xl relative overflow-hidden"
+              >
+                {/* Chamber Indicator Bar */}
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-widest text-teal-400 bg-teal-950/80 px-3 py-1 rounded-full border border-teal-800">
+                      {chamber.chamber_number}
+                    </span>
+                    <h2 className="text-2xl font-black text-white mt-3 leading-tight">
+                      {chamber.doctor_name}
+                    </h2>
+                    <p className="text-sm text-slate-400 font-medium">{chamber.specialties}</p>
+                  </div>
+                </div>
+
+                {/* Huge Serving Token */}
+                <div className="my-8 py-8 bg-slate-950/80 rounded-2xl border border-slate-800/80 flex flex-col items-center justify-center text-center">
+                  <span className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-2">
+                    NOW CONSULTING / বর্তমান সিরিয়াল
+                  </span>
+                  <div className="text-7xl sm:text-8xl font-black font-mono text-emerald-400 tracking-wider animate-pulse">
+                    {chamber.current_token}
+                  </div>
+                  <span className="text-xs font-bold mt-2 text-teal-300 uppercase tracking-widest">
+                    {chamber.current_state}
+                  </span>
+                </div>
+
+                {/* Upcoming Tokens Row */}
+                <div className="pt-4 border-t border-slate-800/80">
+                  <div className="flex items-center justify-between text-xs text-slate-400 font-bold uppercase tracking-wider mb-3">
+                    <span className="flex items-center space-x-1.5">
+                      <Clock className="w-4 h-4 text-slate-500" />
+                      <span>NEXT IN LINE / পরবর্তী সিরিয়াল:</span>
+                    </span>
+                    <span className="text-slate-500 font-normal">{chamber.waiting_count} waiting</span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    {chamber.upcoming_tokens.map((tok, idx) => (
+                      <div
+                        key={idx}
+                        className="flex-1 py-3 bg-slate-800/60 border border-slate-700/60 rounded-xl text-center font-mono font-bold text-lg text-slate-200"
+                      >
+                        {tok}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </main>
 
       {/* Footer Ticker */}
