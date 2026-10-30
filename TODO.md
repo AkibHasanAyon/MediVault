@@ -11,10 +11,10 @@
 
 | Metric | Status |
 |---|---|
-| **Overall Project Completion** | **44%** (`4 / 9 Phases Complete` · `31 / 64 Tasks Done`) |
-| **Current Active Phase** | **Phase 5: AI Clinical Intelligence, RAG & Monthly Reports (Weeks 5–7)** |
+| **Overall Project Completion** | **55%** (`5 / 9 Phases Complete` · `38 / 64 Tasks Done`) |
+| **Current Active Phase** | **Phase 6: Scoped QR Consultation & Digital Prescriptions (Weeks 7–8)** |
 | **Messaging Channel Mode** | `MESSAGING_BACKEND=email` (Zero-cost SMTP dev mode) |
-| **Next Actionable Task** | `T5.1: ChromaDB Semantic RAG Retrieval Service` |
+| **Next Actionable Task** | `T6.1: Ephemeral 30-Minute Consultation Share QR Generator` |
 
 ### 🗺️ 9-Phase Roadmap Alignment
 
@@ -26,7 +26,8 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
 | **2** | [Section 3](#phase-2-core-data-models--database-migrations-weeks-23) | 11 Domain Apps, Base Models, Foreign Keys, Physiological Limits, Initial Migrations | Weeks 2–3 | 8 | `COMPLETED` ✅ |
 | **3** | [Section 4](#phase-3-document-processing--ocr-pipeline-weeks-34) | Upload API, Celery Workers, GCP Vision OCR, GPT-4o-mini Extraction, ChromaDB Index | Weeks 3–4 | 7 | `COMPLETED` ✅ |
 | **4** | [Section 5](#phase-4-health-monitoring--danger-alert-system-weeks-45) | Vitals CRUD, Danger Alerts (Hypo/Hyper/Crisis OR), Meds Schedule & Adherence | Weeks 4–5 | 8 | `COMPLETED` ✅ |
-| **5** | [Section 6](#phase-5-ai-clinical-intelligence-rag--monthly-reports-weeks-57) | ChromaDB RAG, Bilingual Bangla/English "Ask AI", Pre-Intake, 10-Sec Brief, WeasyPrint PDF | Weeks 5–7 | 7 | `PENDING` |
+| **5** | [Section 6](#phase-5-ai-clinical-intelligence-rag--monthly-reports-weeks-57) | ChromaDB RAG, Bilingual Bangla/English "Ask AI", Pre-Intake, 10-Sec Brief, WeasyPrint PDF | Weeks 5–7 | 7 | `COMPLETED` ✅ |
+| **6** | [Section 7](#phase-6-scoped-qr-consultation--digital-prescriptions-weeks-78) | 30-Min Ephemeral HMAC QR, Doctor Scanner, Digital Rx Canvas, Drug Interactions | Weeks 7–8 | 8 | `PENDING` |
 | **6** | [Section 7](#phase-6-scoped-qr-consultation--digital-prescriptions-weeks-78) | 30-Min Ephemeral HMAC QR, Doctor Scanner, Digital Rx Canvas, Drug Interactions | Weeks 7–8 | 8 | `PENDING` |
 | **7** | [Section 8](#phase-7-real-time-chamber-queue-websockets-weeks-89) | Django Channels WebSocket, Live Queue Consumer, Assistant & Doctor Desk, Multi-Channel Serial Alerts | Weeks 8–9 | 6 | `PENDING` |
 | **8** | [Section 9](#phase-8-reactjs-prototype-frontend-weeks-912) | React 18 + Vite + Tailwind, 3 Role Portals (Patient, Doctor, Assistant), WebSockets | Weeks 9–12 | 6 | `PENDING` |
@@ -291,7 +292,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
 
 **Implementation Guide Reference:** [docs/Implementation.md § 6](file:///c:/Users/User/Desktop/Medivault%20resources/MediVault/docs/Implementation.md#6-phase-5-ai-rag--monthly-reports-weeks-57)
 
-- [ ] **Task 5.1: ChromaDB RAG Vector Retriever**
+- [x] **Task 5.1: ChromaDB RAG Vector Retriever**
   - Implement RAG retrieval pipeline:
     - Receive user health query in Bangla or English.
     - Generate query embedding via OpenAI `text-embedding-3-small`.
@@ -300,7 +301,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/ai_services/rag_retriever.py`
   - *Verification:* RAG search for "fasting sugar" returns relevant prescription & lab test chunks.
 
-- [ ] **Task 5.2: Grounded Q&A Chat Engine ("Ask AI")**
+- [x] **Task 5.2: Grounded Q&A Chat Engine ("Ask AI")**
   - `POST /api/v1/ai/ask/`: Conversational RAG endpoint.
   - System prompt enforcing strict clinical safety rules:
     - Never diagnose diseases, change dosages, or suggest alternative drugs.
@@ -310,14 +311,14 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/ai_services/views.py`, `backend/apps/ai_services/prompts.py`
   - *Verification:* Asking "আমার কি ওষুধ খাওয়া উচিত?" triggers polite medical refusal and recommendation to see a doctor.
 
-- [ ] **Task 5.3: Conversation History & Context Threads**
+- [x] **Task 5.3: Conversation History & Context Threads**
   - Store chat sessions in `AIConversation` and `AIMessage`.
   - Support multi-turn Q&A within 5-message context sliding window.
   - `GET /api/v1/ai/conversations/` and `GET /api/v1/ai/conversations/{id}/messages/`.
   - *Target Files:* `backend/apps/ai_services/models.py`, `backend/apps/ai_services/views.py`
   - *Verification:* Second question in chat context correctly references previous question's medication.
 
-- [ ] **Task 5.4: Pre-Appointment 3-Question Intake Synthesis**
+- [x] **Task 5.4: Pre-Appointment 3-Question Intake Synthesis**
   - `POST /api/v1/appointments/{id}/pre-summary/`: Intake questionnaire:
     1. *What is your primary concern for this visit?*
     2. *What symptoms have you experienced recently?*
@@ -326,7 +327,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/appointments/services/intake_synthesis.py`
   - *Verification:* Submitting intake triggers GPT-4o-mini synthesis returning SOAP-style brief.
 
-- [ ] **Task 5.5: 10-Second Doctor Pre-Consultation Synthesis**
+- [x] **Task 5.5: 10-Second Doctor Pre-Consultation Synthesis**
   - `GET /api/v1/doctor/patients/{id}/brief/`:
     - 90-day glucose & BP averages (SQL computed deterministically).
     - Danger alert incident count.
@@ -336,7 +337,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/doctors/services/brief_service.py`
   - *Verification:* Endpoint executes in $< 100\text{ms}$ when cached in Redis.
 
-- [ ] **Task 5.6: Vector HTML/CSS Monthly Health Report Template**
+- [x] **Task 5.6: Vector HTML/CSS Monthly Health Report Template**
   - Design HTML/CSS template for vector PDF:
     - Monthly vital trend charts (SVG embedded).
     - Medication adherence percentage gauge.
@@ -345,7 +346,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/reports/templates/monthly_report.html`
   - *Verification:* Template renders cleanly in browser with Bangla font styling (`Noto Sans Bengali`).
 
-- [ ] **Task 5.7: WeasyPrint PDF Generation & Celery 1st-of-Month Dispatch**
+- [x] **Task 5.7: WeasyPrint PDF Generation & Celery 1st-of-Month Dispatch**
   - Convert HTML to PDF via `weasyprint`.
   - Set up Celery Beat task `generate_monthly_health_reports` running on the 1st of each month at 00:00 UTC.
   - Generate reports for all active patients for the preceding calendar month.

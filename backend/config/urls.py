@@ -27,6 +27,18 @@ urlpatterns = [
     # Active Medications & Adherence Engine (Phase 4)
     path('api/v1/medications/', include('apps.medications.urls')),
 
+    # AI Clinical Intelligence, RAG & Ask AI (Phase 5)
+    path('api/v1/ai/', include('apps.ai_services.urls')),
+
+    # Appointments & Pre-Intake Summaries (Phase 5)
+    path('api/v1/appointments/', include('apps.appointments.urls')),
+
+    # Doctor Pre-Consultation 10-Second Brief (Phase 5)
+    path('api/v1/doctor/', include('apps.doctors.urls')),
+
+    # Monthly Health Reports & Vector PDF (Phase 5)
+    path('api/v1/reports/', include('apps.reports.urls')),
+
     # Interactive API Documentation (OpenAPI 3.1 & Swagger)
     path('api/v1/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/v1/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
