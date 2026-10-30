@@ -146,6 +146,21 @@ class VitalsSummaryView(APIView):
             "latest_weight": WeightLogSerializer(latest_weight).data if latest_weight else None,
             "unacknowledged_danger_alerts_count": alert_qs.count(),
             "active_danger_alerts": DangerAlertSerializer(alert_qs[:5], many=True).data,
+            "glucose": {
+                "latest": BloodGlucoseLogSerializer(latest_glucose).data if latest_glucose else None,
+                "avg_90_days": avg_glucose,
+                "danger_count_30_days": alert_qs.count(),
+            },
+            "blood_pressure": {
+                "latest": BloodPressureLogSerializer(latest_bp).data if latest_bp else None,
+                "avg_systolic_90_days": None,
+                "avg_diastolic_90_days": None,
+                "crisis_count_30_days": 0,
+            },
+            "weight": {
+                "latest": WeightLogSerializer(latest_weight).data if latest_weight else None,
+                "current_bmi": round(float(latest_weight.bmi), 1) if latest_weight and hasattr(latest_weight, 'bmi') and latest_weight.bmi else None,
+            },
         }
         return Response({"success": True, "data": data}, status=status.HTTP_200_OK)
 

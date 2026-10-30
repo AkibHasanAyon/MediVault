@@ -142,7 +142,7 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
         <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
           <div className="flex items-center justify-between text-slate-500 text-xs font-medium mb-1">
             <span>Blood Glucose</span>
-            {summary?.glucose.latest && (
+            {summary?.glucose?.latest && (
               <span className="text-[10px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full">
                 {summary.glucose.latest.context}
               </span>
@@ -150,14 +150,14 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
           </div>
           <div className="flex items-baseline space-x-2">
             <span className="text-3xl font-extrabold text-slate-900">
-              {summary?.glucose.latest?.glucose_value_mmol ?? '--'}
+              {summary?.glucose?.latest?.glucose_value_mmol ?? '--'}
             </span>
             <span className="text-xs text-slate-500 font-semibold">mmol/L</span>
           </div>
           <p className="text-[11px] text-slate-500 mt-2">
             90-Day Avg:{' '}
             <strong className="text-slate-700">
-              {summary?.glucose.avg_90_days ? `${summary.glucose.avg_90_days} mmol/L` : 'No logs'}
+              {summary?.glucose?.avg_90_days ? `${summary.glucose.avg_90_days} mmol/L` : 'No logs'}
             </strong>
           </p>
         </div>
@@ -169,7 +169,7 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
               <Heart className="w-3.5 h-3.5 text-rose-500" />
               <span>Blood Pressure</span>
             </span>
-            {summary?.blood_pressure.latest?.pulse_bpm && (
+            {summary?.blood_pressure?.latest?.pulse_bpm && (
               <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">
                 {summary.blood_pressure.latest.pulse_bpm} bpm
               </span>
@@ -177,7 +177,7 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
           </div>
           <div className="flex items-baseline space-x-2">
             <span className="text-3xl font-extrabold text-slate-900">
-              {summary?.blood_pressure.latest
+              {summary?.blood_pressure?.latest
                 ? `${summary.blood_pressure.latest.systolic_mmHg}/${summary.blood_pressure.latest.diastolic_mmHg}`
                 : '--/--'}
             </span>
@@ -186,7 +186,7 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
           <p className="text-[11px] text-slate-500 mt-2">
             90-Day Avg:{' '}
             <strong className="text-slate-700">
-              {summary?.blood_pressure.avg_systolic_90_days && summary?.blood_pressure.avg_diastolic_90_days
+              {summary?.blood_pressure?.avg_systolic_90_days && summary?.blood_pressure?.avg_diastolic_90_days
                 ? `${summary.blood_pressure.avg_systolic_90_days}/${summary.blood_pressure.avg_diastolic_90_days}`
                 : 'No logs'}
             </strong>
@@ -200,7 +200,7 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
               <Scale className="w-3.5 h-3.5 text-medivault-primary" />
               <span>Weight & BMI</span>
             </span>
-            {summary?.weight.latest?.bmi_category && (
+            {summary?.weight?.latest?.bmi_category && (
               <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
                 {summary.weight.latest.bmi_category}
               </span>
@@ -208,15 +208,15 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
           </div>
           <div className="flex items-baseline space-x-2">
             <span className="text-3xl font-extrabold text-slate-900">
-              {summary?.weight.latest?.weight_kg ?? '--'}
+              {summary?.weight?.latest?.weight_kg ?? '--'}
             </span>
             <span className="text-xs text-slate-500 font-semibold">kg</span>
-            {summary?.weight.current_bmi && (
+            {summary?.weight?.current_bmi && (
               <span className="text-xs text-slate-400">| BMI {summary.weight.current_bmi}</span>
             )}
           </div>
           <p className="text-[11px] text-slate-500 mt-2">
-            {summary?.weight.latest?.height_cm
+            {summary?.weight?.latest?.height_cm
               ? `Height: ${summary.weight.latest.height_cm} cm`
               : 'No weight logged'}
           </p>

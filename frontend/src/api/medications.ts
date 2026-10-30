@@ -15,10 +15,12 @@ export interface MedicationReminder {
 
 export interface TodayMedicationsResponse {
   date: string;
-  adherence_percentage: number;
-  doses_taken: number;
-  total_scheduled: number;
-  schedule: {
+  adherence_percentage?: number;
+  doses_taken?: number;
+  total_scheduled?: number;
+  total_doses?: number;
+  doses?: any[];
+  schedule?: {
     morning: MedicationReminder[];
     noon: MedicationReminder[];
     night: MedicationReminder[];

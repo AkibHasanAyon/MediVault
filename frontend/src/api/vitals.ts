@@ -30,6 +30,12 @@ export interface WeightLog {
 }
 
 export interface VitalsSummary {
+  latest_glucose?: GlucoseLog | null;
+  seven_day_avg_glucose?: number | null;
+  latest_bp?: BloodPressureLog | null;
+  latest_weight?: WeightLog | null;
+  unacknowledged_danger_alerts_count?: number;
+  active_danger_alerts?: any[];
   glucose: {
     latest: GlucoseLog | null;
     avg_90_days: number | null;
@@ -50,7 +56,30 @@ export interface VitalsSummary {
 export const vitalsApi = {
   getSummary: async (): Promise<VitalsSummary> => {
     const { data } = await apiClient.get('/health-logs/vitals/summary/');
-    return data.data || data;
+    const raw = data.data || data || {};
+    return {
+      latest_glucose: raw.latest_glucose || null,
+      seven_day_avg_glucose: raw.seven_day_avg_glucose || null,
+      latest_bp: raw.latest_bp || null,
+      latest_weight: raw.latest_weight || null,
+      unacknowledged_danger_alerts_count: raw.unacknowledged_danger_alerts_count || 0,
+      active_danger_alerts: raw.active_danger_alerts || [],
+      glucose: raw.glucose || {
+        latest: raw.latest_glucose || null,
+        avg_90_days: raw.seven_day_avg_glucose || null,
+        danger_count_30_days: raw.unacknowledged_danger_alerts_count || 0,
+      },
+      blood_pressure: raw.blood_pressure || {
+        latest: raw.latest_bp || null,
+        avg_systolic_90_days: null,
+        avg_diastolic_90_days: null,
+        crisis_count_30_days: 0,
+      },
+      weight: raw.weight || {
+        latest: raw.latest_weight || null,
+        current_bmi: raw.latest_weight?.bmi || null,
+      },
+    };
   },
 
   getGlucoseLogs: async (limit = 30): Promise<GlucoseLog[]> => {
