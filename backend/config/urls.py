@@ -10,6 +10,7 @@ from drf_spectacular.views import (
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
+from apps.appointments.views.display_views import ClinicQueueDisplayView
 
 urlpatterns = [
     # Django Admin
@@ -33,8 +34,14 @@ urlpatterns = [
     # Appointments & Pre-Intake Summaries (Phase 5)
     path('api/v1/appointments/', include('apps.appointments.urls')),
 
-    # Doctor Pre-Consultation 10-Second Brief (Phase 5)
+    # Clinic Assistant Chamber Queue Desk (Phase 7)
+    path('api/v1/assistant/queue/', include('apps.appointments.assistant_urls')),
+
+    # Doctor Pre-Consultation 10-Second Brief & Live Queue (Phase 5 & 7)
     path('api/v1/doctor/', include('apps.doctors.urls')),
+
+    # Waiting Room TV & LED Display (Phase 7)
+    path('api/v1/queue/display/<uuid:clinic_id>/', ClinicQueueDisplayView.as_view(), name='clinic-queue-display'),
 
     # Monthly Health Reports & Vector PDF (Phase 5)
     path('api/v1/reports/', include('apps.reports.urls')),

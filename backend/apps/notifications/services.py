@@ -62,6 +62,15 @@ class MessagingService:
             return SMSGatewayService.send_sms(recipient_phone, sms_text)
 
     @classmethod
+    def send_call_in_alert(cls, recipient_phone: str, recipient_email: str | None, serial_token: str, clinic_name: str, doctor_name: str) -> bool:
+        backend = cls.get_backend()
+        if backend == 'email' and recipient_email:
+            return EmailService.send_call_in_email(recipient_email, serial_token, clinic_name, doctor_name)
+        else:
+            sms_text = f"MediVault: Token {serial_token} called into Dr. {doctor_name}'s chamber ({clinic_name}). Please enter now."
+            return SMSGatewayService.send_sms(recipient_phone, sms_text)
+
+    @classmethod
     def send_danger_alert(cls, recipient_phone: str, recipient_email: str | None, alert_type: str, trigger_value: str, instructions: str) -> bool:
         backend = cls.get_backend()
         if backend == 'email' and recipient_email:

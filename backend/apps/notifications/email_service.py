@@ -59,6 +59,29 @@ class EmailService:
             return False
 
     @staticmethod
+    def send_call_in_email(to_email: str, serial_token: str, clinic_name: str, doctor_name: str) -> bool:
+        subject = f"[MediVault Chamber Call] It's Your Turn! Token {serial_token}"
+        message = (
+            f"Dear Patient,\n\n"
+            f"আপনার সিরিয়াল নং {serial_token} ডাকা হয়েছে। অনুগ্রহ করে ডা. {doctor_name}-এর চেম্বারে প্রবেশ করুন।\n\n"
+            f"Your serial token {serial_token} has been called into Dr. {doctor_name}'s chamber at {clinic_name}.\n"
+            f"Please proceed to the chamber room now.\n\n"
+            f"— MediVault Chamber Desk"
+        )
+        try:
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[to_email],
+                fail_silently=False,
+            )
+            return True
+        except Exception as e:
+            logger.error("Failed to send call-in email to %s: %s", to_email, str(e))
+            return False
+
+    @staticmethod
     def send_danger_alert_email(to_email: str, alert_type: str, trigger_value: str, instruction_text: str) -> bool:
         subject = f"🚨 URGENT HEALTH ALERT: {alert_type} Detected ({trigger_value})"
         message = (

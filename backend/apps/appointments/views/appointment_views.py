@@ -2,13 +2,13 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Appointment, PreAppointmentSummary
-from .serializers import (
+from ..models import Appointment, PreAppointmentSummary
+from ..serializers import (
     AppointmentSerializer,
     PreAppointmentSummarySerializer,
     IntakeSubmissionSerializer,
 )
-from .services.intake_synthesis import IntakeSynthesizer
+from ..services.intake_synthesis import IntakeSynthesizer
 
 class AppointmentViewSet(viewsets.ModelViewSet):
     """

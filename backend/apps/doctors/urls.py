@@ -6,4 +6,5 @@ urlpatterns = [
     path('patients/<uuid:patient_id>/brief/', DoctorPatientBriefView.as_view(), name='doctor-patient-brief'),
     path('consultation/scan-qr/', DoctorScanQRView.as_view(), name='doctor-consultation-scan-qr'),
     path('prescriptions/', include('apps.prescriptions.urls')),
+    path('queue/', include('apps.appointments.doctor_urls')),
 ]

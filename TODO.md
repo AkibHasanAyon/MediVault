@@ -11,10 +11,10 @@
 
 | Metric | Status |
 |---|---|
-| **Overall Project Completion** | **66%** (`6 / 9 Phases Complete` · `46 / 64 Tasks Done`) |
-| **Current Active Phase** | **Phase 7: Real-Time Chamber Queue WebSockets (Weeks 8–9)** |
+| **Overall Project Completion** | **77%** (`7 / 9 Phases Complete` · `52 / 64 Tasks Done`) |
+| **Current Active Phase** | **Phase 8: React.js Prototype Frontend (Weeks 9–12)** |
 | **Messaging Channel Mode** | `MESSAGING_BACKEND=email` (Zero-cost SMTP dev mode) |
-| **Next Actionable Task** | `T7.1: Django Channels ASGI Setup & Redis Channel Layer` |
+| **Next Actionable Task** | `T8.1: React 18 + Vite + TypeScript Scaffolding & Design System` |
 
 ### 🗺️ 9-Phase Roadmap Alignment
 
@@ -28,7 +28,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
 | **4** | [Section 5](#phase-4-health-monitoring--danger-alert-system-weeks-45) | Vitals CRUD, Danger Alerts (Hypo/Hyper/Crisis OR), Meds Schedule & Adherence | Weeks 4–5 | 8 | `COMPLETED` ✅ |
 | **5** | [Section 6](#phase-5-ai-clinical-intelligence-rag--monthly-reports-weeks-57) | ChromaDB RAG, Bilingual Bangla/English "Ask AI", Pre-Intake, 10-Sec Brief, WeasyPrint PDF | Weeks 5–7 | 7 | `COMPLETED` ✅ |
 | **6** | [Section 7](#phase-6-scoped-qr-consultation--digital-prescriptions-weeks-78) | 30-Min Ephemeral HMAC QR, Doctor Scanner, Digital Rx Canvas, Drug Interactions | Weeks 7–8 | 8 | `COMPLETED` ✅ |
-| **7** | [Section 8](#phase-7-real-time-chamber-queue-websockets-weeks-89) | Django Channels WebSocket, Live Queue Consumer, Assistant & Doctor Desk, Multi-Channel Serial Alerts | Weeks 8–9 | 6 | `PENDING` |
+| **7** | [Section 8](#phase-7-real-time-chamber-queue-websockets-weeks-89) | Django Channels WebSocket, Live Queue Consumer, Assistant & Doctor Desk, Multi-Channel Serial Alerts | Weeks 8–9 | 6 | `COMPLETED` ✅ |
 | **8** | [Section 9](#phase-8-reactjs-prototype-frontend-weeks-912) | React 18 + Vite + Tailwind, 3 Role Portals (Patient, Doctor, Assistant), WebSockets | Weeks 9–12 | 6 | `PENDING` |
 | **9** | [Section 10 & 11](#phase-9-testing-security-hardening--quality-gates-weeks-1314) | Pytest Suite ($\ge 80\%$ Coverage), Celery/Channels Tests, Security Audit, Quality Gates | Weeks 13–14 | 7 | `PENDING` |
 
@@ -436,20 +436,20 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
 
 **Implementation Guide Reference:** [docs/Implementation.md § 8](file:///c:/Users/User/Desktop/Medivault%20resources/MediVault/docs/Implementation.md#8-phase-7-real-time-chamber-queue-websockets-weeks-89)
 
-- [ ] **Task 7.1: Django Channels ASGI Setup & Redis Channel Layer**
+- [x] **Task 7.1: Django Channels ASGI Setup & Redis Channel Layer**
   - Configure `asgi.py` with `ProtocolTypeRouter` for HTTP and WebSocket traffic.
   - Configure `channels_redis.core.RedisChannelLayer`.
   - Implement JWT authentication middleware for WebSocket connections (`apps/common/channels_auth.py`).
   - *Target Files:* `backend/config/asgi.py`, `backend/config/routing.py`, `backend/apps/common/channels_auth.py`
   - *Verification:* WebSocket connection to `ws://localhost:8000/ws/` authenticates successfully with Bearer token.
 
-- [ ] **Task 7.2: `ClinicQueueConsumer` WebSocket Consumer**
+- [x] **Task 7.2: `ClinicQueueConsumer` WebSocket Consumer**
   - Create `ClinicQueueConsumer` listening on room group `queue_clinic_{clinic_id}`.
   - Broadcast queue events: `TOKEN_ISSUED`, `PATIENT_CALLED`, `CONSULTATION_STARTED`, `CONSULTATION_ENDED`, `PATIENT_SKIPPED`.
   - *Target Files:* `backend/apps/appointments/consumers.py`
   - *Verification:* Connecting two `wscat` clients to same clinic room verifies message broadcast in $< 50\text{ms}$.
 
-- [ ] **Task 7.3: Clinic Assistant Queue Desk API**
+- [x] **Task 7.3: Clinic Assistant Queue Desk API**
   - `POST /api/v1/assistant/queue/assign-token/`:
     - Fast phone number lookup (prevents duplicate patient registration).
     - Issue sequential daily serial token (`A-001`, `A-002`).
@@ -458,20 +458,20 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/appointments/views/assistant_views.py`
   - *Verification:* Assigning token generates sequential serial number and broadcasts WebSocket event.
 
-- [ ] **Task 7.4: Doctor In-Chamber Live Queue Desk API**
+- [x] **Task 7.4: Doctor In-Chamber Live Queue Desk API**
   - `GET /api/v1/doctor/queue/live/`: Returns current patient in room, next 3 waiting patients, and completed count.
   - `PUT /api/v1/doctor/queue/{id}/call-in/`: Doctor clicks "Call In" $\rightarrow$ updates status, pushes live notification.
   - *Target Files:* `backend/apps/appointments/views/doctor_views.py`
   - *Verification:* Calling in a patient updates assistant board and triggers patient notification simultaneously.
 
-- [ ] **Task 7.5: Automated Serial Call-In Notifications via MessagingService**
+- [x] **Task 7.5: Automated Serial Call-In Notifications via MessagingService**
   - When patient is 2 serials away from consultation, dispatch automated alert:
     - *"আপনার সিরিয়াল নং A-012। আপনার পূর্বে আর ২ জন রোগী আছেন। অনুগ্রহ করে চেম্বারের সামনে প্রস্তুত থাকুন।"*
   - Routed through `MessagingService` (SMTP email in dev, SMS in prod).
   - *Target Files:* `backend/apps/appointments/services/queue_notifier.py`
   - *Verification:* Calling token A-010 triggers automated notification dispatch to patient holding token A-012.
 
-- [ ] **Task 7.6: End-of-Day Clinic Chamber Analytics API**
+- [x] **Task 7.6: End-of-Day Clinic Chamber Analytics API**
   - `GET /api/v1/assistant/queue/daily-summary/`:
     - Total patients registered vs seen.
     - Average consultation duration.

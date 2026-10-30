@@ -19,11 +19,15 @@ class IsDoctor(permissions.BasePermission):
 
 
 class IsClinicAssistant(permissions.BasePermission):
-    """Allows access strictly to clinic chamber assistants."""
+    """Allows access to clinic chamber assistants or staff."""
     message = "Access restricted to authorized clinic assistants."
 
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and request.user.role == 'ASSISTANT')
+        return bool(
+            request.user and request.user.is_authenticated and (
+                request.user.role in ['ASSISTANT', 'ADMIN'] or request.user.is_staff
+            )
+        )
 
 
 class IsOwnerOrSharedDoctor(permissions.BasePermission):

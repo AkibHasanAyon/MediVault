@@ -20,6 +20,22 @@ class DoctorProfile(TimeStampedUUIDModel):
     chamber_address = models.TextField(blank=True)
     is_verified_practitioner = models.BooleanField(default=False, db_index=True)
 
+    @property
+    def specialties(self):
+        return self.primary_specialty
+
+    @specialties.setter
+    def specialties(self, val):
+        self.primary_specialty = val
+
+    @property
+    def is_verified(self):
+        return self.is_verified_practitioner
+
+    @is_verified.setter
+    def is_verified(self, val):
+        self.is_verified_practitioner = val
+
     class Meta:
         verbose_name = _('Doctor Profile')
         verbose_name_plural = _('Doctor Profiles')
