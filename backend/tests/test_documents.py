@@ -189,3 +189,29 @@ class TestPhase3DocumentProcessing:
         api_client.force_authenticate(user=patient2)
         res = api_client.get(f'/api/v1/documents/{doc.id}/')
         assert res.status_code == 404
+
+    def test_zero_config_upload_and_auto_classification(self, api_client):
+        """
+        Verify that a patient can upload a medical file without specifying document_type
+        or document_date, and AI automatically classifies it and extracts metadata.
+        """
+        patient = User.objects.create_user(phone_number="+8801720000006", password="pwd", full_name="Amina Begum")
+        api_client.force_authenticate(user=patient)
+
+        # Upload without document_type or document_date
+        upload_file = SimpleUploadedFile("prescription_scan.jpg", create_valid_dummy_image(), content_type="image/jpeg")
+        res = api_client.post('/api/v1/documents/upload/', data={"file": upload_file}, format='multipart')
+
+        assert res.status_code == 202
+        doc_id = res.data["data"]["document_id"]
+
+        doc = MedicalDocument.objects.get(id=doc_id)
+        if doc.processing_status != MedicalDocument.ProcessingStatus.COMPLETED:
+            process_document_ocr_task(str(doc.id))
+            doc.refresh_from_db()
+
+        assert doc.processing_status == MedicalDocument.ProcessingStatus.COMPLETED
+        # Verified auto-classification
+        assert doc.document_type == MedicalDocument.DocType.PRESCRIPTION
+        assert doc.title != ""
+        assert doc.extracted_entities.filter(entity_type=DocumentEntity.EntityType.MEDICATION).exists()

@@ -166,3 +166,11 @@ class MedicalDocumentViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK
         )
 
+    @action(detail=True, methods=['post'], url_path='confirm')
+    def confirm(self, request, pk=None):
+        doc = self.get_object()
+        doc.user_confirmed = True
+        doc.save(update_fields=['user_confirmed'])
+        doc.extracted_entities.update(provenance=DocumentEntity.Provenance.PATIENT_CONFIRMED)
+        return Response({"success": True, "message": "Document marked as verified."})
+

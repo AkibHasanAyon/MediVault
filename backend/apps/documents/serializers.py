@@ -23,6 +23,8 @@ class DocumentEntitySerializer(serializers.ModelSerializer):
 class MedicalDocumentUploadSerializer(serializers.ModelSerializer):
     file = serializers.FileField(validators=[validate_medical_document_file], required=True)
     family_member_id = serializers.UUIDField(required=False, allow_null=True)
+    document_type = serializers.ChoiceField(choices=MedicalDocument.DocType.choices, required=False, default=MedicalDocument.DocType.OTHER)
+    document_date = serializers.DateField(required=False, allow_null=True)
 
     class Meta:
         model = MedicalDocument
@@ -56,6 +58,13 @@ class MedicalDocumentUploadSerializer(serializers.ModelSerializer):
 
         request = self.context.get('request')
         patient_profile = request.user.patient_profile
+
+        if 'document_date' not in validated_data or not validated_data['document_date']:
+            from django.utils import timezone
+            validated_data['document_date'] = timezone.now().date()
+
+        if 'document_type' not in validated_data or not validated_data['document_type']:
+            validated_data['document_type'] = MedicalDocument.DocType.OTHER
 
         document = MedicalDocument.objects.create(
             patient=patient_profile,

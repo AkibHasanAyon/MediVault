@@ -88,6 +88,34 @@ def process_document_ocr_task(self, document_id: str):
                 provenance=DocumentEntity.Provenance.OCR_EXTRACTED
             )
 
+        # 3.4 Auto-classify document type, date, and smart title from AI extraction
+        ai_doc_type = entities_data.get('document_type')
+        if ai_doc_type:
+            type_mapping = {
+                'PRESCRIPTION': MedicalDocument.DocType.PRESCRIPTION,
+                'LAB_REPORT': MedicalDocument.DocType.LAB_REPORT,
+                'RADIOLOGY': MedicalDocument.DocType.RADIOLOGY,
+                'DISCHARGE': MedicalDocument.DocType.DISCHARGE,
+                'DISCHARGE_SUMMARY': MedicalDocument.DocType.DISCHARGE,
+                'OTHER': MedicalDocument.DocType.OTHER,
+            }
+            matched_type = type_mapping.get(str(ai_doc_type).upper())
+            if matched_type:
+                doc.document_type = matched_type
+
+        ai_doc_date = entities_data.get('document_date')
+        if ai_doc_date:
+            from datetime import datetime
+            try:
+                parsed_date = datetime.strptime(str(ai_doc_date)[:10], '%Y-%m-%d').date()
+                doc.document_date = parsed_date
+            except Exception:
+                pass
+
+        ai_title = entities_data.get('title')
+        if ai_title and (not doc.title or doc.title in ['Medical Document', 'OTHER', 'PRESCRIPTION', 'LAB_REPORT']):
+            doc.title = str(ai_title)[:255]
+
         # Optional Doctor / Clinic metadata enrichment
         if entities_data.get('doctor_name') and not doc.issuing_doctor_name:
             doc.issuing_doctor_name = entities_data['doctor_name']
@@ -112,6 +140,9 @@ def process_document_ocr_task(self, document_id: str):
         doc.processing_status = MedicalDocument.ProcessingStatus.COMPLETED
         doc.save(update_fields=[
             'processing_status',
+            'document_type',
+            'document_date',
+            'title',
             'issuing_doctor_name',
             'issuing_clinic_name',
             'chroma_vector_id'

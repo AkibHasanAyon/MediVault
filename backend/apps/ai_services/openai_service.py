@@ -111,9 +111,28 @@ class OpenAIService:
         if "Diabetes" in text:
             diagnoses.append("Type 2 Diabetes Mellitus")
 
+        # Classify document type
+        doc_type = "OTHER"
+        smart_title = "Health Document"
+        if "discharge" in text.lower() or "admission" in text.lower():
+            doc_type = "DISCHARGE"
+            smart_title = "Discharge Summary"
+        elif lab_tests or "test" in text.lower() or "investigation" in text.lower() or "cbc" in text.lower():
+            doc_type = "LAB_REPORT"
+            smart_title = "Diagnostic Lab Report"
+        elif medications or "rx" in text.lower() or "℞" in text or "tab." in text.lower():
+            doc_type = "PRESCRIPTION"
+            smart_title = "Doctor Prescription"
+
+        # Try to find date in text
+        date_match = re.search(r'\b(20[2-3][0-9]-[0-1][0-9]-[0-3][0-9])\b', text)
+        doc_date = date_match.group(1) if date_match else "2026-08-14"
+
         return {
-            "document_summary": "Scanned Prescription / Clinical Encounter",
-            "document_date": "2026-08-14",
+            "document_type": doc_type,
+            "document_date": doc_date,
+            "title": smart_title,
+            "document_summary": f"Scanned {smart_title}",
             "doctor_name": "Dr. Nasreen Akhter",
             "clinic_name": "Shapla Care Clinic",
             "diagnoses": diagnoses or ["General Consultation"],
