@@ -11,10 +11,10 @@
 
 | Metric | Status |
 |---|---|
-| **Overall Project Completion** | **55%** (`5 / 9 Phases Complete` · `38 / 64 Tasks Done`) |
-| **Current Active Phase** | **Phase 6: Scoped QR Consultation & Digital Prescriptions (Weeks 7–8)** |
+| **Overall Project Completion** | **66%** (`6 / 9 Phases Complete` · `46 / 64 Tasks Done`) |
+| **Current Active Phase** | **Phase 7: Real-Time Chamber Queue WebSockets (Weeks 8–9)** |
 | **Messaging Channel Mode** | `MESSAGING_BACKEND=email` (Zero-cost SMTP dev mode) |
-| **Next Actionable Task** | `T6.1: Ephemeral 30-Minute Consultation Share QR Generator` |
+| **Next Actionable Task** | `T7.1: Django Channels ASGI Setup & Redis Channel Layer` |
 
 ### 🗺️ 9-Phase Roadmap Alignment
 
@@ -27,8 +27,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
 | **3** | [Section 4](#phase-3-document-processing--ocr-pipeline-weeks-34) | Upload API, Celery Workers, GCP Vision OCR, GPT-4o-mini Extraction, ChromaDB Index | Weeks 3–4 | 7 | `COMPLETED` ✅ |
 | **4** | [Section 5](#phase-4-health-monitoring--danger-alert-system-weeks-45) | Vitals CRUD, Danger Alerts (Hypo/Hyper/Crisis OR), Meds Schedule & Adherence | Weeks 4–5 | 8 | `COMPLETED` ✅ |
 | **5** | [Section 6](#phase-5-ai-clinical-intelligence-rag--monthly-reports-weeks-57) | ChromaDB RAG, Bilingual Bangla/English "Ask AI", Pre-Intake, 10-Sec Brief, WeasyPrint PDF | Weeks 5–7 | 7 | `COMPLETED` ✅ |
-| **6** | [Section 7](#phase-6-scoped-qr-consultation--digital-prescriptions-weeks-78) | 30-Min Ephemeral HMAC QR, Doctor Scanner, Digital Rx Canvas, Drug Interactions | Weeks 7–8 | 8 | `PENDING` |
-| **6** | [Section 7](#phase-6-scoped-qr-consultation--digital-prescriptions-weeks-78) | 30-Min Ephemeral HMAC QR, Doctor Scanner, Digital Rx Canvas, Drug Interactions | Weeks 7–8 | 8 | `PENDING` |
+| **6** | [Section 7](#phase-6-scoped-qr-consultation--digital-prescriptions-weeks-78) | 30-Min Ephemeral HMAC QR, Doctor Scanner, Digital Rx Canvas, Drug Interactions | Weeks 7–8 | 8 | `COMPLETED` ✅ |
 | **7** | [Section 8](#phase-7-real-time-chamber-queue-websockets-weeks-89) | Django Channels WebSocket, Live Queue Consumer, Assistant & Doctor Desk, Multi-Channel Serial Alerts | Weeks 8–9 | 6 | `PENDING` |
 | **8** | [Section 9](#phase-8-reactjs-prototype-frontend-weeks-912) | React 18 + Vite + Tailwind, 3 Role Portals (Patient, Doctor, Assistant), WebSockets | Weeks 9–12 | 6 | `PENDING` |
 | **9** | [Section 10 & 11](#phase-9-testing-security-hardening--quality-gates-weeks-1314) | Pytest Suite ($\ge 80\%$ Coverage), Celery/Channels Tests, Security Audit, Quality Gates | Weeks 13–14 | 7 | `PENDING` |
@@ -360,7 +359,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
 
 **Implementation Guide Reference:** [docs/Implementation.md § 7](file:///c:/Users/User/Desktop/Medivault%20resources/MediVault/docs/Implementation.md#7-phase-6-qr-consultation--prescriptions-weeks-78)
 
-- [ ] **Task 6.1: Ephemeral QR Token Generation (Patient)**
+- [x] **Task 6.1: Ephemeral QR Token Generation (Patient)**
   - `POST /api/v1/sharing/qr/generate/`:
     - Patient selects permitted scope (`all_documents`, `last_30_days`, specific record IDs).
     - Generate HMAC-SHA256 signature using server secret + random nonce.
@@ -369,7 +368,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/sharing/services/qr_service.py`, `backend/apps/sharing/views.py`
   - *Verification:* Token payload decrypts with valid signature and Redis key expires after 30 minutes.
 
-- [ ] **Task 6.2: Doctor QR Scan & Handshake Authorization**
+- [x] **Task 6.2: Doctor QR Scan & Handshake Authorization**
   - `POST /api/v1/doctor/consultation/scan-qr/`:
     - Authenticated doctor scans patient QR code.
     - Validates token against Redis; binds handshake to `doctor_id`.
@@ -378,7 +377,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/sharing/views.py`, `backend/apps/sharing/services/audit_service.py`
   - *Verification:* Doctor scan unlocks patient timeline; audit log records doctor license, chamber IP, and timestamp.
 
-- [ ] **Task 6.3: Patient In-Session Revocation Endpoint**
+- [x] **Task 6.3: Patient In-Session Revocation Endpoint**
   - `DELETE /api/v1/sharing/{id}/revoke/`:
     - Patient taps `[Revoke Doctor Access]` on phone.
     - Instantly purges token from Redis and marks `is_active=False` in DB.
@@ -386,7 +385,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/sharing/views.py`
   - *Verification:* Calling revoke immediately blocks doctor endpoint access within $< 100\text{ms}$.
 
-- [ ] **Task 6.4: Digital Prescription Writer Canvas API**
+- [x] **Task 6.4: Digital Prescription Writer Canvas API**
   - `POST /api/v1/doctor/prescriptions/`:
     - Chamber header (doctor name, degrees, BM&DC reg, clinic branch).
     - Patient details (name, age, vitals snapshot).
@@ -396,7 +395,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/prescriptions/serializers.py`, `backend/apps/prescriptions/views.py`
   - *Verification:* Creating prescription saves record and returns generated prescription ID.
 
-- [ ] **Task 6.5: Real-Time Drug Interaction Checking Engine**
+- [x] **Task 6.5: Real-Time Drug Interaction Checking Engine**
   - `POST /api/v1/doctor/prescriptions/check-interactions/`:
     - Cross-reference newly prescribed medicines against patient's existing active medications.
     - Query known interaction rules (e.g. Metformin + contrast agents, ACE inhibitors + Potassium).
@@ -405,7 +404,7 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/prescriptions/services/interaction_service.py`
   - *Verification:* Checking Metformin + Ciprofloxacin returns warning of enhanced hypoglycemic effect.
 
-- [ ] **Task 6.6: Closed-Loop Digital Prescription $\rightarrow$ Patient Reminders**
+- [x] **Task 6.6: Closed-Loop Digital Prescription $\rightarrow$ Patient Reminders**
   - On prescription finalization, execute post-save handler:
     - Populate patient's active `Medication` roster.
     - Auto-create draft `MedicationReminder` entries for patient review.
@@ -414,14 +413,14 @@ This tracker is synchronized 1-to-1 with [docs/Implementation.md](file:///c:/Use
   - *Target Files:* `backend/apps/prescriptions/signals.py`
   - *Verification:* Finalizing prescription immediately makes medications visible in patient's app.
 
-- [ ] **Task 6.7: Clinic-Branded Prescription PDF Generator**
+- [x] **Task 6.7: Clinic-Branded Prescription PDF Generator**
   - `GET /api/v1/doctor/prescriptions/{id}/pdf/`:
     - Render standard Bangladesh prescription layout (Rx symbol, doctor chamber header, medicines table, advice, follow-up).
     - Generate vector PDF via `weasyprint` / `reportlab`.
   - *Target Files:* `backend/apps/prescriptions/services/prescription_pdf.py`
   - *Verification:* PDF matches standard clinic layout with QR verification watermark.
 
-- [ ] **Task 6.8: Smart Follow-Up Memory & Escalated Reminders**
+- [x] **Task 6.8: Smart Follow-Up Memory & Escalated Reminders**
   - Parse follow-up advice (e.g. "Review after 3 months").
   - Create scheduled reminder milestones:
     - Milestone 1: **2.5 months** (Early appointment booking reminder)

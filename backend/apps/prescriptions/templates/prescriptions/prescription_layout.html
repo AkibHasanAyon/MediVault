@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Prescription — {{ patient_name }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1.2cm;
+            @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 8pt;
+                color: #64748b;
+            }
+        }
+        body {
+            font-family: 'Helvetica Neue', 'Noto Sans Bengali', Arial, sans-serif;
+            color: #1e293b;
+            line-height: 1.4;
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+        }
+        .header {
+            border-bottom: 2px solid #0284c7;
+            padding-bottom: 12px;
+            margin-bottom: 14px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .doc-name {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #0f172a;
+            margin: 0;
+        }
+        .doc-quals {
+            font-size: 9.5pt;
+            color: #334155;
+            margin: 2px 0;
+        }
+        .doc-bmdc {
+            font-size: 9pt;
+            color: #0284c7;
+            font-weight: 600;
+        }
+        .chamber-info {
+            text-align: right;
+            font-size: 9pt;
+            color: #475569;
+        }
+        .chamber-name {
+            font-size: 11pt;
+            font-weight: bold;
+            color: #0f172a;
+        }
+        .patient-bar {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 16px;
+            font-size: 9pt;
+        }
+        .patient-table {
+            width: 100%;
+        }
+        .patient-table td {
+            padding: 2px 6px;
+        }
+        .content-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .col-clinical {
+            width: 32%;
+            vertical-align: top;
+            border-right: 1.5px solid #cbd5e1;
+            padding-right: 14px;
+        }
+        .col-rx {
+            width: 68%;
+            vertical-align: top;
+            padding-left: 16px;
+        }
+        .section-label {
+            font-size: 9.5pt;
+            font-weight: bold;
+            color: #0284c7;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 10px;
+            margin-bottom: 4px;
+        }
+        .clinical-text {
+            font-size: 9pt;
+            color: #334155;
+            margin-bottom: 8px;
+        }
+        .rx-symbol {
+            font-size: 24pt;
+            font-weight: bold;
+            font-family: 'Times New Roman', serif;
+            color: #0284c7;
+            margin-bottom: 8px;
+        }
+        .med-item {
+            margin-bottom: 14px;
+            padding-bottom: 8px;
+            border-bottom: 1px dotted #e2e8f0;
+        }
+        .med-name {
+            font-size: 10.5pt;
+            font-weight: bold;
+            color: #0f172a;
+        }
+        .med-generic {
+            font-size: 8.5pt;
+            color: #64748b;
+            font-style: italic;
+        }
+        .med-schedule {
+            font-size: 9.5pt;
+            color: #1e293b;
+            font-weight: 600;
+            margin-top: 2px;
+        }
+        .med-instruction {
+            font-size: 8.5pt;
+            color: #475569;
+        }
+        .footer {
+            margin-top: 30px;
+            border-top: 1.5px solid #e2e8f0;
+            padding-top: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+        .follow-up-box {
+            font-size: 9pt;
+            color: #0f172a;
+        }
+        .qr-watermark {
+            text-align: right;
+            font-size: 7.5pt;
+            color: #94a3b8;
+        }
+        .qr-watermark img {
+            width: 65px;
+            height: 65px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Doctor & Chamber Header -->
+    <div class="header">
+        <div>
+            <div class="doc-name">{{ doctor_name }}</div>
+            <div class="doc-quals">{{ doctor_specialties }}</div>
+            <div class="doc-bmdc">BM&DC Reg. No: {{ bmdc_number }}</div>
+        </div>
+        <div class="chamber-info">
+            <div class="chamber-name">{{ clinic_name }}</div>
+            <div>{{ clinic_branch }}</div>
+            <div>{{ clinic_address }}</div>
+            <div>Tel: {{ clinic_phone }}</div>
+        </div>
+    </div>
+
+    <!-- Patient Details Bar -->
+    <div class="patient-bar">
+        <table class="patient-table">
+            <tr>
+                <td><strong>Patient:</strong> {{ patient_name }}</td>
+                <td><strong>Age/DOB:</strong> {{ patient_age }}</td>
+                <td><strong>Blood Group:</strong> {{ blood_group }}</td>
+                <td><strong>Date:</strong> {{ prescription_date }}</td>
+            </tr>
+            <tr>
+                <td colspan="2"><strong>Allergies:</strong> {{ known_allergies }}</td>
+                <td colspan="2"><strong>Rx ID:</strong> #{{ prescription_id }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 2-Column Clinical + Rx Body -->
+    <table class="content-table">
+        <tr>
+            <!-- Left Column: Complaints & Diagnosis -->
+            <td class="col-clinical">
+                {% if chief_complaints %}
+                <div class="section-label">Chief Complaints (C/C)</div>
+                <div class="clinical-text">{{ chief_complaints|linebreaks }}</div>
+                {% endif %}
+
+                {% if clinical_findings %}
+                <div class="section-label">Clinical Findings (O/E)</div>
+                <div class="clinical-text">{{ clinical_findings|linebreaks }}</div>
+                {% endif %}
+
+                {% if diagnosis %}
+                <div class="section-label">Diagnosis (Dx)</div>
+                <div class="clinical-text"><strong>{{ diagnosis }}</strong></div>
+                {% endif %}
+            </td>
+
+            <!-- Right Column: Rx Medications -->
+            <td class="col-rx">
+                <div class="rx-symbol">℞</div>
+                {% for med in medications %}
+                <div class="med-item">
+                    <span class="med-name">{{ forloop.counter }}. {{ med.dosage_form }} {{ med.brand_name }} {{ med.strength }}</span>
+                    {% if med.generic_name %}<span class="med-generic">({{ med.generic_name }})</span>{% endif %}
+                    <div class="med-schedule">
+                        {{ med.frequency }} &nbsp;—&nbsp; {{ med.timing_relation }} &nbsp;—&nbsp; {{ med.duration_days }} days
+                    </div>
+                    {% if med.special_instructions %}
+                    <div class="med-instruction">• {{ med.special_instructions }}</div>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <p style="font-size: 9pt; color: #64748b;">No medications prescribed.</p>
+                {% endfor %}
+            </td>
+        </tr>
+    </table>
+
+    <!-- Footer & Follow-Up -->
+    <div class="footer">
+        <div class="follow-up-box">
+            {% if follow_up_date or follow_up_notes %}
+            <strong>Next Follow-Up / Advice:</strong><br>
+            {{ follow_up_notes|default:"Follow up as advised" }}
+            {% if follow_up_date %} (Date: {{ follow_up_date }}){% endif %}
+            {% endif %}
+        </div>
+        <div class="qr-watermark">
+            {% if qr_base64 %}
+            <img src="{{ qr_base64 }}" alt="Prescription Verification QR"><br>
+            {% endif %}
+            Verified Digital Prescription · MediVault Bangladesh
+        </div>
+    </div>
+
+</body>
+</html>
+

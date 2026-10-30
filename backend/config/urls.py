@@ -39,6 +39,12 @@ urlpatterns = [
     # Monthly Health Reports & Vector PDF (Phase 5)
     path('api/v1/reports/', include('apps.reports.urls')),
 
+    # Ephemeral Scoped QR Consultation & Sharing (Phase 6)
+    path('api/v1/sharing/', include('apps.sharing.urls')),
+
+    # Digital Prescriptions & Drug Interactions (Phase 6)
+    path('api/v1/prescriptions/', include('apps.prescriptions.urls')),
+
     # Interactive API Documentation (OpenAPI 3.1 & Swagger)
     path('api/v1/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/v1/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),

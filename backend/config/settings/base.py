@@ -213,6 +213,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.reports.tasks.generate_monthly_health_reports',
         'schedule': 86400.0,  # 24 hours
     },
+    'dispatch-follow-up-reminders-daily': {
+        'task': 'apps.prescriptions.tasks.dispatch_scheduled_follow_up_reminders',
+        'schedule': 86400.0,  # 24 hours
+    },
 }
 
 # Messaging & Notification Gateway
