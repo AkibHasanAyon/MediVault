@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from '../../components/common/Header';
 import { VitalsDashboard } from '../../components/patient/VitalsDashboard';
 import { MedicationTodayCard } from '../../components/patient/MedicationTodayCard';
@@ -21,7 +21,7 @@ export const PatientDashboard: React.FC = () => {
   const [isQrOpen, setIsQrOpen] = useState(false);
   const [isAiOpen, setIsAiOpen] = useState(false);
 
-  const loadAllData = async () => {
+  const loadAllData = useCallback(async () => {
     try {
       const [sumRes, docsRes, schedRes] = await Promise.all([
         vitalsApi.getSummary().catch(() => null),
@@ -34,11 +34,11 @@ export const PatientDashboard: React.FC = () => {
     } catch {
       // Ignore initial offline load
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadAllData();
-  }, []);
+  }, [loadAllData]);
 
   return (
     <div className="min-h-screen bg-medivault-bg flex flex-col">

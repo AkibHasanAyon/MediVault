@@ -189,9 +189,10 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({ documents, onRefre
   const handleQuickConfirm = async (docId: string) => {
     try {
       await documentsApi.confirmDocument(docId);
-      if (selectedDoc) {
-        setSelectedDoc({ ...selectedDoc, is_patient_confirmed: true, user_confirmed: true });
-      }
+      setSelectedDoc(null);
+      setIsEditing(false);
+      setUploadNotice('Document successfully verified and synchronized with your health timeline!');
+      setTimeout(() => setUploadNotice(null), 6000);
       onRefresh();
     } catch (err: any) {
       alert('Confirmation failed. Please try again.');
@@ -221,9 +222,11 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({ documents, onRefre
         })),
       };
 
-      const updated = await documentsApi.reviewDocument(selectedDoc.id, payload);
-      setSelectedDoc(updated);
+      await documentsApi.reviewDocument(selectedDoc.id, payload);
+      setSelectedDoc(null);
       setIsEditing(false);
+      setUploadNotice('Changes saved and document verified successfully!');
+      setTimeout(() => setUploadNotice(null), 6000);
       onRefresh();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to save changes. Please try again.');
@@ -1468,6 +1471,16 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({ documents, onRefre
                   </>
                 ) : (
                   <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDoc(null);
+                        setIsEditing(false);
+                      }}
+                      className="px-4 py-2 border border-slate-200 bg-white rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                    >
+                      Close
+                    </button>
                     <button
                       type="button"
                       onClick={() => setIsEditing(true)}
