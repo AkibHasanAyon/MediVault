@@ -154,9 +154,9 @@ class AskAIView(APIView):
         except Exception:
             pass
 
-        # Recent Uploaded Medical Documents
+        # Recent Uploaded Medical Documents & Structured Findings
         try:
-            from apps.documents.models import MedicalDocument
+            from apps.documents.models import MedicalDocument, DocumentEntity
             recent_docs = MedicalDocument.objects.filter(patient=patient).order_by('-document_date')[:5]
             if recent_docs.exists():
                 docs_summary = []
@@ -165,6 +165,18 @@ class AskAIView(APIView):
                     clinic = f"at {d.issuing_clinic_name}" if d.issuing_clinic_name else ""
                     docs_summary.append(f"- {d.title or d.document_type} ({d.document_date}) {clinician} {clinic}".strip())
                 patient_summary.append("Uploaded Health Documents:\n" + "\n".join(docs_summary))
+
+            # Include All Recent Extracted Lab Findings across patient's documents
+            recent_entities = DocumentEntity.objects.filter(
+                document__patient=patient
+            ).select_related('document').order_by('-document__document_date', '-created_at')[:40]
+            if recent_entities.exists():
+                lab_lines = []
+                for e in recent_entities:
+                    ref = f" (Ref: {e.reference_range})" if e.reference_range else ""
+                    unit = f" {e.unit}" if e.unit else ""
+                    lab_lines.append(f"- {e.entity_name}: {e.entity_value}{unit}{ref} [from {e.document.title}]")
+                patient_summary.append("Recent Laboratory Findings & Measurements (From Uploaded Reports):\n" + "\n".join(lab_lines))
         except Exception:
             pass
 

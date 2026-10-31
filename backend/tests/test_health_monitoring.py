@@ -317,3 +317,60 @@ class TestPhase4HealthMonitoringAndDangerAlerts:
         # Execute Celery Beat task
         dispatched_count = dispatch_scheduled_medication_reminders()
         assert dispatched_count >= 1
+
+    def test_out_of_range_warnings_and_recommendations(self, api_client, patient_user):
+        """Verify that out-of-range glucose and BP logs return actionable warnings & recommendations."""
+        api_client.force_authenticate(user=patient_user)
+
+        # 1. Normal Fasting Glucose
+        res_norm_g = api_client.post('/api/v1/health-logs/blood-glucose/', data={
+            "glucose_value_mmol": "5.2",
+            "reading_type": "FASTING"
+        })
+        assert res_norm_g.status_code == 201
+        assert res_norm_g.data["is_out_of_range"] is False
+        assert "Normal Fasting Glucose" in res_norm_g.data["clinical_assessment"]["warning_title"]
+
+        # 2. Elevated / High Fasting Glucose
+        res_high_g = api_client.post('/api/v1/health-logs/blood-glucose/', data={
+            "glucose_value_mmol": "9.5",
+            "reading_type": "FASTING"
+        })
+        assert res_high_g.status_code == 201
+        assert res_high_g.data["is_out_of_range"] is True
+        assert res_high_g.data["warning_message"] != ""
+        assert "water" in res_high_g.data["recommendation"].lower()
+
+        # 3. Stage 2 Hypertension BP
+        res_bp_s2 = api_client.post('/api/v1/health-logs/blood-pressure/', data={
+            "systolic_mmHg": 145,
+            "diastolic_mmHg": 95,
+            "pulse_bpm": 82
+        })
+        assert res_bp_s2.status_code == 201
+        assert res_bp_s2.data["is_out_of_range"] is True
+        assert "Stage 2 Hypertension" in res_bp_s2.data["clinical_assessment"]["warning_title"]
+        assert "antihypertensive" in res_bp_s2.data["recommendation"].lower() or "salt" in res_bp_s2.data["recommendation"].lower()
+
+        # 4. Low BP (Hypotension)
+        res_hypo = api_client.post('/api/v1/health-logs/blood-pressure/', data={
+            "systolic_mmHg": 85,
+            "diastolic_mmHg": 55,
+            "pulse_bpm": 68
+        })
+        assert res_hypo.status_code == 201
+        assert res_hypo.data["is_out_of_range"] is True
+        assert res_hypo.data["bp_stage"] == "HYPOTENSION"
+        assert "elevated" in res_hypo.data["recommendation"].lower() or "fluids" in res_hypo.data["recommendation"].lower()
+
+        # 5. Standard 120/80 mmHg -> NORMAL, not Stage 1 or Elevated
+        res_standard = api_client.post('/api/v1/health-logs/blood-pressure/', data={
+            "systolic_mmHg": 120,
+            "diastolic_mmHg": 80,
+            "pulse_bpm": 72
+        })
+        assert res_standard.status_code == 201
+        assert res_standard.data["is_out_of_range"] is False
+        assert res_standard.data["bp_stage"] == "NORMAL"
+        assert "Normal Blood Pressure" in res_standard.data["clinical_assessment"]["warning_title"]
+

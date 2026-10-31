@@ -246,6 +246,13 @@ class MedicalDocumentViewSet(viewsets.ModelViewSet):
         if entities_payload is not None:
             doc.extracted_entities.exclude(id__in=kept_ids).delete()
 
+        # Auto-update RAG knowledgebase with verified data
+        try:
+            from apps.ai_services.rag_retriever import RAGRetriever
+            RAGRetriever().index_document(doc)
+        except Exception:
+            pass
+
         detail_serializer = MedicalDocumentDetailSerializer(doc, context={'request': request})
         return Response(
             {
@@ -262,5 +269,13 @@ class MedicalDocumentViewSet(viewsets.ModelViewSet):
         doc.user_confirmed = True
         doc.save(update_fields=['user_confirmed'])
         doc.extracted_entities.update(provenance=DocumentEntity.Provenance.PATIENT_CONFIRMED)
+
+        # Auto-update RAG knowledgebase
+        try:
+            from apps.ai_services.rag_retriever import RAGRetriever
+            RAGRetriever().index_document(doc)
+        except Exception:
+            pass
+
         return Response({"success": True, "message": "Document marked as verified."})
 

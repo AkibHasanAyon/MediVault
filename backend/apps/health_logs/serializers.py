@@ -39,6 +39,10 @@ class BloodGlucoseLogSerializer(serializers.ModelSerializer):
     unit = serializers.CharField(required=False, write_only=True, default='mmol')
     context = serializers.CharField(required=False, write_only=True)
     family_member_name = serializers.CharField(source='family_member.full_name', read_only=True)
+    clinical_assessment = serializers.SerializerMethodField()
+    is_out_of_range = serializers.SerializerMethodField()
+    warning_message = serializers.SerializerMethodField()
+    recommendation = serializers.SerializerMethodField()
 
     class Meta:
         model = BloodGlucoseLog
@@ -56,9 +60,26 @@ class BloodGlucoseLogSerializer(serializers.ModelSerializer):
             'recorded_at',
             'notes',
             'is_danger',
+            'is_out_of_range',
+            'warning_message',
+            'recommendation',
+            'clinical_assessment',
             'created_at',
         ]
-        read_only_fields = ['id', 'patient', 'is_danger', 'created_at']
+        read_only_fields = ['id', 'patient', 'is_danger', 'is_out_of_range', 'warning_message', 'recommendation', 'clinical_assessment', 'created_at']
+
+    def get_clinical_assessment(self, obj) -> dict:
+        from .alert_engine import DangerAlertEngine
+        return DangerAlertEngine.assess_glucose(obj.glucose_value_mmol, obj.reading_type)
+
+    def get_is_out_of_range(self, obj) -> bool:
+        return self.get_clinical_assessment(obj).get("is_out_of_range", False)
+
+    def get_warning_message(self, obj) -> str:
+        return self.get_clinical_assessment(obj).get("warning_message", "")
+
+    def get_recommendation(self, obj) -> str:
+        return self.get_clinical_assessment(obj).get("recommendation", "")
 
     def validate(self, attrs):
         # Handle generic 'glucose_value' and 'unit'
@@ -114,6 +135,10 @@ class BloodPressureLogSerializer(serializers.ModelSerializer):
     recorded_at = serializers.DateTimeField(required=False, default=timezone.now)
     family_member_name = serializers.CharField(source='family_member.full_name', read_only=True)
     bp_stage = serializers.SerializerMethodField()
+    clinical_assessment = serializers.SerializerMethodField()
+    is_out_of_range = serializers.SerializerMethodField()
+    warning_message = serializers.SerializerMethodField()
+    recommendation = serializers.SerializerMethodField()
 
     class Meta:
         model = BloodPressureLog
@@ -128,9 +153,13 @@ class BloodPressureLogSerializer(serializers.ModelSerializer):
             'recorded_at',
             'is_crisis',
             'bp_stage',
+            'is_out_of_range',
+            'warning_message',
+            'recommendation',
+            'clinical_assessment',
             'created_at',
         ]
-        read_only_fields = ['id', 'patient', 'is_crisis', 'created_at']
+        read_only_fields = ['id', 'patient', 'is_crisis', 'bp_stage', 'is_out_of_range', 'warning_message', 'recommendation', 'clinical_assessment', 'created_at']
 
     def get_bp_stage(self, obj) -> str:
         sys = obj.systolic_mmHg
@@ -140,11 +169,28 @@ class BloodPressureLogSerializer(serializers.ModelSerializer):
             return "HYPERTENSIVE_CRISIS"
         if sys >= 140 or dia >= 90:
             return "STAGE_2_HYPERTENSION"
-        if (130 <= sys <= 139) or (80 <= dia <= 89):
-            return "STAGE_1_HYPERTENSION"
-        if 120 <= sys <= 129 and dia < 80:
+        if sys < 90 or dia < 60:
+            return "HYPOTENSION"
+        if sys <= 120 and dia <= 80:
+            return "NORMAL"
+        if (120 < sys <= 129) and dia <= 80:
             return "ELEVATED"
+        if (130 <= sys <= 139) or (80 < dia <= 89):
+            return "STAGE_1_HYPERTENSION"
         return "NORMAL"
+
+    def get_clinical_assessment(self, obj) -> dict:
+        from .alert_engine import DangerAlertEngine
+        return DangerAlertEngine.assess_blood_pressure(obj.systolic_mmHg, obj.diastolic_mmHg, obj.pulse_bpm)
+
+    def get_is_out_of_range(self, obj) -> bool:
+        return self.get_clinical_assessment(obj).get("is_out_of_range", False)
+
+    def get_warning_message(self, obj) -> str:
+        return self.get_clinical_assessment(obj).get("warning_message", "")
+
+    def get_recommendation(self, obj) -> str:
+        return self.get_clinical_assessment(obj).get("recommendation", "")
 
     def validate(self, attrs):
         if not attrs.get('recorded_at'):

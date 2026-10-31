@@ -7,6 +7,10 @@ export interface GlucoseLog {
   context: 'FASTING' | 'POST_MEAL' | 'BEDTIME' | 'RANDOM';
   recorded_at: string;
   is_danger: boolean;
+  is_out_of_range?: boolean;
+  warning_message?: string;
+  recommendation?: string;
+  clinical_assessment?: any;
   notes?: string;
 }
 
@@ -17,7 +21,12 @@ export interface BloodPressureLog {
   pulse_bpm: number;
   recorded_at: string;
   is_danger: boolean;
+  bp_stage?: string;
   staging_display?: string;
+  is_out_of_range?: boolean;
+  warning_message?: string;
+  recommendation?: string;
+  clinical_assessment?: any;
 }
 
 export interface WeightLog {

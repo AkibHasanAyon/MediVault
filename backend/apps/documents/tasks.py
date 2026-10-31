@@ -137,7 +137,13 @@ def process_document_ocr_task(self, document_id: str):
         if entities_data.get('clinic_name') and not doc.issuing_clinic_name:
             doc.issuing_clinic_name = entities_data['clinic_name']
 
-        # Stage 4: Semantic Vector Indexing in ChromaDB
+        # Stage 4: Semantic Vector Indexing in ChromaDB & Local RAG Knowledgebase
+        try:
+            from apps.ai_services.rag_retriever import RAGRetriever
+            RAGRetriever().index_document(doc)
+        except Exception as rag_err:
+            logger.warning("RAG indexing error: %s", str(rag_err))
+
         chroma = ChromaService()
         vector_id = chroma.index_document(
             doc_id=str(doc.id),
