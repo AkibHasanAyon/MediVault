@@ -1,4 +1,4 @@
-# MediVault 🩺🔒
+# MediVault
 
 > **An AI-Powered Personal Health Record and Patient–Doctor Communication Platform for Bangladesh**
 
