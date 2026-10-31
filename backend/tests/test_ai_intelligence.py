@@ -1,4 +1,5 @@
 import pytest
+import re
 from decimal import Decimal
 from datetime import datetime, date, timedelta
 from django.utils import timezone
@@ -282,3 +283,22 @@ class TestPhase5AIClinicalIntelligenceAndReports:
         # Trigger periodic Celery task
         dispatched_count = generate_monthly_health_reports()
         assert dispatched_count >= 1
+
+    def test_ask_ai_language_matching(self, api_client, patient_user):
+        api_client.force_authenticate(user=patient_user)
+
+        # 1. Ask in English -> Expect English answer
+        res_en = api_client.post('/api/v1/ai/ask/', data={
+            "question": "Can you give me everyday tips to drink more water and stay hydrated?"
+        })
+        assert res_en.status_code == 200
+        ans_en = res_en.data["answer"]
+        assert not re.search(r'[\u0980-\u09ff]', ans_en[:50])
+
+        # 2. Ask in Bangla -> Expect Bangla answer
+        res_bn = api_client.post('/api/v1/ai/ask/', data={
+            "question": "প্রতিদিন সুস্থ থাকার জন্য পানি খাওয়ার কিছু টিপস দিন।"
+        })
+        assert res_bn.status_code == 200
+        ans_bn = res_bn.data["answer"]
+        assert bool(re.search(r'[\u0980-\u09ff]', ans_bn))

@@ -274,3 +274,170 @@ class TestPhase3DocumentProcessing:
         assert parsed["doctor_name"] == "Khaleda Khatun MSC MPH"
         assert "PADMA DIAGNOSTIC CENTRE" in parsed["clinic_name"]
         assert parsed["document_type"] == "LAB_REPORT"
+
+    def test_multi_image_upload_merged_to_pdf(self, api_client):
+        """
+        Verify that multiple image files uploaded together with combine=True
+        are automatically merged into a single multi-page PDF document.
+        """
+        patient = User.objects.create_user(phone_number="+8801720000008", password="pwd", full_name="Multi-Page Patient")
+        api_client.force_authenticate(user=patient)
+
+        img1 = SimpleUploadedFile("page1.jpg", create_valid_dummy_image(), content_type="image/jpeg")
+        img2 = SimpleUploadedFile("page2.jpg", create_valid_dummy_image(), content_type="image/jpeg")
+
+        payload = {
+            "files": [img1, img2],
+            "combine": "true"
+        }
+        res = api_client.post('/api/v1/documents/upload/', data=payload, format='multipart')
+        assert res.status_code == 202
+        assert "images merged into a unified document" in res.data["message"]
+        doc_id = res.data["data"]["document_id"]
+
+        doc = MedicalDocument.objects.get(id=doc_id)
+        assert doc.file.name.lower().endswith('.pdf')
+
+    def test_multi_image_upload_separate_documents(self, api_client):
+        """
+        Verify that multiple image files uploaded with combine=False
+        are created as distinct individual medical documents.
+        """
+        patient = User.objects.create_user(phone_number="+8801720000009", password="pwd", full_name="Batch Patient")
+        api_client.force_authenticate(user=patient)
+
+        img1 = SimpleUploadedFile("doc1.jpg", create_valid_dummy_image(), content_type="image/jpeg")
+        img2 = SimpleUploadedFile("doc2.jpg", create_valid_dummy_image(), content_type="image/jpeg")
+
+        payload = {
+            "files": [img1, img2],
+            "combine": "false"
+        }
+        res = api_client.post('/api/v1/documents/upload/', data=payload, format='multipart')
+        assert res.status_code == 202
+        assert isinstance(res.data["data"], list)
+        assert len(res.data["data"]) == 2
+
+    def test_comprehensive_document_review_and_entity_editing(self, api_client):
+        """
+        Verify that patient review can update document metadata (title, date, doctor, clinic, type),
+        edit entity values, add new clinical entities, and remove unwanted entities.
+        """
+        patient = User.objects.create_user(phone_number="+8801720000010", password="pwd", full_name="Editing Patient")
+        api_client.force_authenticate(user=patient)
+
+        doc = MedicalDocument.objects.create(
+            patient=patient.patient_profile,
+            document_type=MedicalDocument.DocType.OTHER,
+            document_date=date(2026, 8, 1),
+            title="Initial Title",
+            file=SimpleUploadedFile("init.jpg", create_valid_dummy_image(), content_type="image/jpeg")
+        )
+
+        # Create two initial entities
+        e1 = DocumentEntity.objects.create(
+            document=doc,
+            entity_type=DocumentEntity.EntityType.MEDICATION,
+            entity_name="Napa Extra",
+            entity_value="500mg - 1+0+1"
+        )
+        e2_to_delete = DocumentEntity.objects.create(
+            document=doc,
+            entity_type=DocumentEntity.EntityType.DIAGNOSIS,
+            entity_name="Erroneous Diagnosis"
+        )
+
+        review_payload = {
+            "title": "Corrected Prescription - Dr. Rafiq",
+            "document_type": "PRESCRIPTION",
+            "document_date": "2026-08-15",
+            "issuing_doctor_name": "Dr. Rafiqul Islam MBBS FCPS",
+            "issuing_clinic_name": "Square Hospitals Dhaka",
+            "entities": [
+                {
+                    "id": str(e1.id),
+                    "entity_type": "MEDICATION",
+                    "entity_name": "Napa Extra",
+                    "entity_value": "500mg - 1+1+1 (After Food)"
+                },
+                {
+                    "entity_type": "LAB_TEST",
+                    "entity_name": "Serum Creatinine",
+                    "entity_value": "1.1",
+                    "unit": "mg/dL",
+                    "reference_range": "0.7 - 1.3",
+                    "is_abnormal": False
+                }
+            ]
+        }
+
+        res_review = api_client.put(f'/api/v1/documents/{doc.id}/review/', data=review_payload, format='json')
+        assert res_review.status_code == 200
+        assert res_review.data["success"] is True
+
+        doc.refresh_from_db()
+        assert doc.user_confirmed is True
+        assert doc.title == "Corrected Prescription - Dr. Rafiq"
+        assert doc.document_type == MedicalDocument.DocType.PRESCRIPTION
+        assert str(doc.document_date) == "2026-08-15"
+        assert doc.issuing_doctor_name == "Dr. Rafiqul Islam MBBS FCPS"
+        assert doc.issuing_clinic_name == "Square Hospitals Dhaka"
+
+        # e1 should be updated
+        e1.refresh_from_db()
+        assert e1.entity_value == "500mg - 1+1+1 (After Food)"
+        assert e1.provenance == DocumentEntity.Provenance.PATIENT_CONFIRMED
+
+        # Erroneous entity e2 should be deleted
+        assert not DocumentEntity.objects.filter(id=e2_to_delete.id).exists()
+
+        # New entity (Serum Creatinine) should exist
+        assert doc.extracted_entities.filter(entity_name="Serum Creatinine").exists()
+
+    def test_multi_page_exhaustive_extraction_and_audit(self):
+        """Validates that multi-page documents and complex multi-tier reference ranges are parsed exhaustively."""
+        from apps.ai_services.openai_service import OpenAIService
+
+        multi_page_ocr = """--- PAGE 1 ---
+Padma Diagnostic Center Limited
+Referred By: Khaleda Khatun MSC MPH
+Date: 25-Sept-2026
+HAEMATOLOGY
+CBC
+Hb 15.4 gm/dl 11.5-16.0
+RBC 5.37 Million/Cmm 4.0-6.5
+Platelets 355,000 /Cmm 150,000-450,000
+Total WBC 11,200 /Cmm 4,000-11,000
+Polymorph 6,944 /Cmm 2,000-7,000
+Lymphocyte 3,360 /Cmm 1,500-4,000
+Eosinophil 448 /Cmm 20-400
+MCV 85.5 fL 77-93
+MCH 28.7 pg 26-32
+
+--- PAGE 2 ---
+BIOCHEMISTRY
+Fasting Blood Glucose 6.77 mmol/l 4.1-5.9
+S.Creatinine 88 μmol/l Male: 50-130
+Total Cholesterol 6.97 mmol/l <5.2 Desirable; 5.2-6.2 Borderline High; >6.2 High
+HDL 1.18 mmol/l >1.45 No risk; 0.90-1.45 Moderate; <0.90 High risk
+Serum 25-OH Vitamin D 12.20 ng/mL Deficiency <10; Insufficiency 10-30; Sufficiency 30-100; Toxicity >100
+Total Thyroxine (T4) 7.36 µg/dL 4.87-11.72
+"""
+        service = OpenAIService()
+        result = service.extract_clinical_entities(multi_page_ocr)
+
+        assert result is not None
+        assert "lab_tests" in result
+        assert len(result["lab_tests"]) >= 10
+        assert result.get("doctor_name") == "Khaleda Khatun MSC MPH"
+
+        test_names = [t["test_name"].lower() for t in result["lab_tests"]]
+        # Assert key missing entities are present
+        assert any("rbc" in t for t in test_names)
+        assert any("platelet" in t for t in test_names)
+        assert any("mcv" in t for t in test_names)
+        assert any("glucose" in t for t in test_names)
+
+        # Audit metadata must be generated
+        assert "audit_metadata" in result
+        assert result["audit_metadata"]["status"] in ["AUDIT_PASSED", "AUDIT_WARNING"]

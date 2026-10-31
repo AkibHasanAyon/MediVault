@@ -60,13 +60,15 @@ def process_document_ocr_task(self, document_id: str):
                 provenance=DocumentEntity.Provenance.OCR_EXTRACTED
             )
 
-        # 3.2 Ingest Lab Tests
+        # 3.2 Ingest Lab Tests & Clinical Observations
         for lab in entities_data.get('lab_tests', []):
             test_name = lab.get('test_name') or 'Unnamed Lab Test'
             val = str(lab.get('observed_value') or '')
             unit = lab.get('unit') or ''
             ref_range = lab.get('reference_range') or ''
             is_abnormal = bool(lab.get('is_abnormal', False))
+            source_page = lab.get('source_page')
+            raw_snippet = f"[Page {source_page}] {test_name}: {val} {unit}".strip() if source_page else f"{test_name}: {val} {unit}".strip()
 
             DocumentEntity.objects.create(
                 document=doc,
@@ -76,15 +78,28 @@ def process_document_ocr_task(self, document_id: str):
                 unit=unit,
                 reference_range=ref_range,
                 is_abnormal=is_abnormal,
+                raw_snippet=raw_snippet,
                 provenance=DocumentEntity.Provenance.OCR_EXTRACTED
             )
 
-        # 3.3 Ingest Diagnoses
+        # 3.3 Ingest Diagnoses & Clinical Impressions
         for diag in entities_data.get('diagnoses', []):
             DocumentEntity.objects.create(
                 document=doc,
                 entity_type=DocumentEntity.EntityType.DIAGNOSIS,
                 entity_name=str(diag),
+                raw_snippet=str(diag),
+                provenance=DocumentEntity.Provenance.OCR_EXTRACTED
+            )
+
+        # 3.4 Ingest Clinical Advice / Instructions
+        if entities_data.get('follow_up_advice'):
+            DocumentEntity.objects.create(
+                document=doc,
+                entity_type=DocumentEntity.EntityType.ADVICE,
+                entity_name="Follow-up Clinical Advice",
+                entity_value=str(entities_data['follow_up_advice']),
+                raw_snippet=str(entities_data['follow_up_advice']),
                 provenance=DocumentEntity.Provenance.OCR_EXTRACTED
             )
 

@@ -1,8 +1,8 @@
 import { apiClient } from './client';
 
 export interface DocumentEntity {
-  id: string;
-  entity_type?: 'MEDICATION' | 'LAB_TEST' | 'DIAGNOSIS' | 'ALLERGY' | 'ADVICE';
+  id?: string;
+  entity_type?: 'MEDICATION' | 'LAB_TEST' | 'DIAGNOSIS' | 'ALLERGY' | 'ADVICE' | string;
   category?: 'MEDICATION' | 'LAB_TEST' | 'DIAGNOSIS';
   entity_name?: string;
   normalized_name?: string;
@@ -47,18 +47,47 @@ export const documentsApi = {
 
   getDocument: async (id: string): Promise<MedicalDocument> => {
     const { data } = await apiClient.get(`/documents/${id}/`);
-    return data;
+    return data.data || data;
   },
 
-  uploadDocument: async (formData: FormData): Promise<MedicalDocument> => {
+  uploadDocument: async (formData: FormData): Promise<any> => {
     const { data } = await apiClient.post('/documents/upload/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return data.data || data;
   },
 
+  reviewDocument: async (
+    id: string,
+    payload: {
+      title?: string;
+      document_date?: string | null;
+      document_type?: string;
+      issuing_doctor_name?: string;
+      issuing_clinic_name?: string;
+      entities: Array<{
+        id?: string;
+        entity_type: string;
+        entity_name: string;
+        entity_value?: string;
+        unit?: string;
+        reference_range?: string;
+        is_abnormal?: boolean;
+        raw_snippet?: string;
+      }>;
+    }
+  ): Promise<MedicalDocument> => {
+    const { data } = await apiClient.put(`/documents/${id}/review/`, payload);
+    return data.data || data;
+  },
+
   confirmDocument: async (id: string) => {
     const { data } = await apiClient.post(`/documents/${id}/confirm/`);
+    return data;
+  },
+
+  deleteDocument: async (id: string) => {
+    const { data } = await apiClient.delete(`/documents/${id}/`);
     return data;
   },
 };

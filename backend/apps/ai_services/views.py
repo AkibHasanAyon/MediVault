@@ -28,9 +28,9 @@ class AskAIView(APIView):
 
     # Regex patterns for unsafe diagnostic / prescription inquiries
     UNSAFE_DIAGNOSIS_PATTERNS = [
-        r'(কি\s*ওষুধ|কী\s*ওষুধ|কোন\s*ওষুধ|খাওয়া\s*উচিত|খাওয়া\s*উচিত)',
-        r'(রোগ\s*নির্ণয়|আমার\s*কী\s*হয়েছে|আমার\s*কি\s*হয়েছে)',
-        r'(what\s+medicine\s+should\s+i\s+take|what\s+drug\s+should|prescribe\s+me|diagnose\s+me)',
+        r'(?:কি|কী|কোন)\s*ওষুধ.*(?:খাব|খাওয়া|খাওয়া|উচিত)',
+        r'(?:রোগ\s*নির্ণয়|আমার\s*কী\s*হয়েছে|আমার\s*কি\s*হয়েছে|ওষুধ\s*প্রেসক্রাইব)',
+        r'(what\s+medicine\s+should\s+i|what\s+drug\s+should|prescribe\s+me|diagnose\s+me)',
         r'(change\s+my\s+dose|double\s+the\s+dose)',
     ]
 
@@ -51,8 +51,27 @@ class AskAIView(APIView):
         data = serializer.validated_data
 
         question = data['question'].strip()
-        lang = data.get('language', 'bn')
         conv_id = data.get('conversation_id')
+
+        # Dynamically detect user's language from question to always match user's language
+        has_bengali_script = bool(re.search(r'[\u0980-\u09ff]', question))
+        request_lang = request.data.get('language')
+
+        if has_bengali_script:
+            lang = 'bn'
+        elif request_lang in ['en', 'bn']:
+            lang = request_lang
+        else:
+            banglish_words = {
+                'amar', 'amr', 'kemon', 'achen', 'apni', 'tumi', 'osudh', 'khabo', 'korbo',
+                'ki', 'kintu', 'bhalo', 'valo', 'kore', 'hoy', 'hoyeche', 'lagbe', 'bolun',
+                'koto', 'keno', 'ekhon', 'shomossha', 'matha', 'betha', 'pani', 'khawa'
+            }
+            tokens = set(re.findall(r'[a-zA-Z]+', question.lower()))
+            if len(tokens & banglish_words) >= 2 or any(w in tokens for w in ['kemon', 'achen', 'amr', 'osudh', 'khabo']):
+                lang = 'banglish'
+            else:
+                lang = 'en'
 
         patient = user.patient_profile
 
@@ -67,18 +86,23 @@ class AskAIView(APIView):
             conversation = AIConversation.objects.create(
                 patient=patient,
                 title=f"{first_words}..." if len(first_words) < len(question) else question,
-                language=lang
+                language='bn' if lang in ['bn', 'banglish'] else 'en'
             )
 
         # 1. Check for unsafe medical prescription / diagnosis request
         if self.is_unsafe_medical_request(question):
             logger.info("Medical safety refusal triggered for user question: %s", question)
+            is_english = (lang == 'en')
             refusal_text = (
-                "আমি একটি এআই স্বাস্থ্য সহকারী, কোনো ডাক্তার নই। আমি কোনো রোগ নির্ণয় বা নতুন ওষুধ সুপারিশ করতে পারি না। "
-                "অনুগ্রহ করে সঠিক পরামর্শ এবং প্রেসক্রিপশনের জন্য একজন নিবন্ধিত ডাক্তারের সাথে যোগাযোগ করুন।"
-                if lang == 'bn' else
-                "I am an AI health assistant, not a doctor. I cannot diagnose conditions, prescribe new medications, "
-                "or modify dosages. Please consult a licensed physician for clinical guidance."
+                "I am your MediVault health companion and personal assistant, not a doctor. 😊\n\n"
+                "For your safety, I cannot diagnose medical conditions, recommend specific unprescribed medications, or change dosages. "
+                "Please consult a registered physician for clinical diagnosis and safe prescriptions.\n\n"
+                "However, I would love to help you understand your test reports, active medications, or discuss healthy lifestyle tips!"
+                if is_english else
+                "আমি আপনার মেডিভল্ট স্বাস্থ্য সহকারী ও বন্ধু, কিন্তু কোনো লাইসেন্সপ্রাপ্ত ডাক্তার নই। 😊\n\n"
+                "আপনার নিরাপত্তার জন্য আমি কোনো রোগ নির্ণয় বা নতুন ওষুধ প্রেসক্রাইব/সুপারিশ করতে পারি না। "
+                "আপনার এই লক্ষণের সঠিক চিকিৎসার জন্য অনুগ্রহ করে একজন নিবন্ধিত ডাক্তারের সাথে যোগাযোগ করুন।\n\n"
+                "তবে আপনার যেকোনো টেস্ট রিপোর্ট বুঝতে, স্বাস্থ্যকর ডায়েট বা লাইফস্টাইল টিপসের বিষয়ে জানতে চাইলে আমি সবসময় আপনার পাশে আছি!"
             )
 
             # Record in conversation history
@@ -94,7 +118,57 @@ class AskAIView(APIView):
                 "message_id": str(ai_msg.id)
             }, status=status.HTTP_200_OK)
 
-        # 2. Retrieve relevant document chunks via RAG
+        # 2. Build holistic Patient Health Profile Context
+        patient_summary = [f"Patient Name: {user.full_name}"]
+        if patient.blood_group:
+            patient_summary.append(f"Blood Group: {patient.blood_group}")
+        if patient.gender:
+            patient_summary.append(f"Gender: {patient.gender}")
+        if patient.date_of_birth:
+            patient_summary.append(f"Date of Birth: {patient.date_of_birth}")
+
+        # Active Medications
+        try:
+            from apps.medications.models import PatientMedicationSchedule
+            active_meds = PatientMedicationSchedule.objects.filter(patient=patient, is_active=True)
+            if active_meds.exists():
+                med_list = [f"- {m.brand_name} {m.dosage_pattern} ({m.timing_relation or 'as directed'})" for m in active_meds[:8]]
+                patient_summary.append("Active Prescribed Medications:\n" + "\n".join(med_list))
+        except Exception:
+            pass
+
+        # Recent Vitals
+        try:
+            from apps.health_logs.models import BloodGlucoseLog, BloodPressureLog, WeightLog
+            recent_glucose = BloodGlucoseLog.objects.filter(patient=patient).order_by('-measurement_date', '-measurement_time').first()
+            if recent_glucose:
+                patient_summary.append(f"Latest Blood Glucose: {recent_glucose.glucose_value} mmol/L ({recent_glucose.meal_context}) on {recent_glucose.measurement_date}")
+
+            recent_bp = BloodPressureLog.objects.filter(patient=patient).order_by('-measurement_date', '-measurement_time').first()
+            if recent_bp:
+                patient_summary.append(f"Latest Blood Pressure: {recent_bp.systolic}/{recent_bp.diastolic} mmHg on {recent_bp.measurement_date}")
+
+            recent_weight = WeightLog.objects.filter(patient=patient).order_by('-measurement_date').first()
+            if recent_weight:
+                patient_summary.append(f"Latest Weight: {recent_weight.weight_kg} kg")
+        except Exception:
+            pass
+
+        # Recent Uploaded Medical Documents
+        try:
+            from apps.documents.models import MedicalDocument
+            recent_docs = MedicalDocument.objects.filter(patient=patient).order_by('-document_date')[:5]
+            if recent_docs.exists():
+                docs_summary = []
+                for d in recent_docs:
+                    clinician = f"by {d.issuing_doctor_name}" if d.issuing_doctor_name else ""
+                    clinic = f"at {d.issuing_clinic_name}" if d.issuing_clinic_name else ""
+                    docs_summary.append(f"- {d.title or d.document_type} ({d.document_date}) {clinician} {clinic}".strip())
+                patient_summary.append("Uploaded Health Documents:\n" + "\n".join(docs_summary))
+        except Exception:
+            pass
+
+        # 3. Retrieve relevant document chunks via RAG
         retriever = RAGRetriever()
         chunks = retriever.retrieve_context(patient_id=str(patient.id), query_text=question, top_k=4)
 
@@ -105,25 +179,40 @@ class AskAIView(APIView):
                 cited_ids.append(c["document_id"])
             context_blocks.append(f"Document [{c['title']} | Date: {c.get('date')}]:\n{c['content']}")
 
-        context_str = "\n\n---\n\n".join(context_blocks) if context_blocks else "No matching health documents found for this patient."
+        context_str = "\n\n---\n\n".join(context_blocks) if context_blocks else "No specific document excerpts found."
+        patient_profile_str = "\n".join(patient_summary)
 
-        # 3. Build multi-turn context (last 5 messages)
-        recent_messages = conversation.messages.order_by('-created_at')[:5]
+        # 4. Build multi-turn context (last 6 messages)
+        recent_messages = conversation.messages.order_by('-created_at')[:6]
         history = []
         for m in reversed(list(recent_messages)):
             role = "user" if m.sender == AIMessage.Sender.USER else "assistant"
             history.append({"role": role, "content": m.content})
 
-        # Append current user prompt with injected RAG context
+        # Dynamic language directive based on user input
+        if lang == 'en':
+            lang_directive = "The patient asked in English. You MUST reply in fluent, warm, supportive English. Do NOT reply in Bangla."
+        elif lang == 'bn':
+            lang_directive = "The patient asked in Bangla (বাংলা). You MUST reply in warm, empathetic, fluent Bangla."
+        else:
+            lang_directive = "The patient asked in Banglish (Bengali in English letters). Reply warmly in fluent Bangla (or conversational Banglish with simple English medical terms)."
+
+        # Append current user prompt with injected Patient Context & RAG
         prompt_with_context = (
-            f"CONTEXT FROM PATIENT HEALTH RECORDS:\n{context_str}\n\n"
-            f"PATIENT QUESTION: {question}\n\n"
-            f"Remember: Answer solely based on the context. If not mentioned in records, say it is not found. "
-            f"Respond in {'Bangla' if lang == 'bn' else 'English'}."
+            f"=== PATIENT PROFILE & HEALTH CONTEXT ===\n"
+            f"{patient_profile_str}\n\n"
+            f"=== RELEVANT UPLOADED DOCUMENT EXCERPTS ===\n"
+            f"{context_str}\n\n"
+            f"=== PATIENT'S QUESTION / MESSAGE ===\n"
+            f"{question}\n\n"
+            f"(Instruction: Be a warm, conversational personal health assistant and friend. "
+            f"{lang_directive} "
+            f"Use clean markdown formatting with clear headings, bullet points, and bold text for readability. "
+            f"Do not prescribe new prescription medications.)"
         )
         history.append({"role": "user", "content": prompt_with_context})
 
-        # 4. Generate grounded response using OpenAI GPT-4o-mini
+        # 5. Generate friendly, grounded response using OpenAI GPT-4o-mini
         ai_service = OpenAIService()
         answer = ""
         if ai_service.is_api_configured():
@@ -132,7 +221,7 @@ class AskAIView(APIView):
                 client = OpenAI(api_key=ai_service.api_key)
                 completion = client.chat.completions.create(
                     model=ai_service.model,
-                    temperature=0.2,
+                    temperature=0.7,  # Friendly, natural, empathetic tone
                     messages=[
                         {"role": "system", "content": ASK_AI_SYSTEM_PROMPT},
                         *history
@@ -143,21 +232,33 @@ class AskAIView(APIView):
                 logger.error("OpenAI API call failed in AskAIView: %s", str(e))
 
         if not answer:
-            # Fallback deterministic answer when offline
-            if context_blocks:
+            # Fallback friendly response when offline
+            q_lower = question.lower()
+            is_english = (lang == 'en')
+            if any(k in q_lower for k in ['hello', 'hi', 'hey', 'কেমন', 'হ্যালো', 'সালাম']):
                 answer = (
-                    f"আপনার আপলোডকৃত রেকর্ড অনুযায়ী:\n{chunks[0]['content'][:200]}..."
-                    if lang == 'bn' else
-                    f"According to your uploaded records:\n{chunks[0]['content'][:200]}..."
+                    f"Hello {user.full_name}! 😊 I am your MediVault personal health assistant and friend.\n\n"
+                    "How are you feeling today? Whether you want to discuss healthy lifestyle habits, explore nutrition tips, or understand your diagnostic lab reports, I'm right here with you!"
+                    if is_english else
+                    f"হ্যালো {user.full_name}! 😊 আমি আপনার মেডিভল্ট ব্যক্তিগত স্বাস্থ্য সহকারী ও বন্ধু।\n\n"
+                    "আপনার স্বাস্থ্য, লাইফস্টাইল বা টেস্ট রিপোর্ট সম্পর্কিত যেকোনো বিষয়ে আমাকে নির্দ্বিধায় জিজ্ঞাসা করতে পারেন। আজ আপনাকে কীভাবে সাহায্য করতে পারি?"
+                )
+            elif context_blocks:
+                answer = (
+                    f"Based on your uploaded medical records:\n\n{chunks[0]['content'][:250]}...\n\n"
+                    "Please let me know if you would like me to explain any specific test results or values in detail! 😊"
+                    if is_english else
+                    f"আপনার আপলোডকৃত রেকর্ড অনুযায়ী:\n\n{chunks[0]['content'][:250]}...\n\n"
+                    "আপনার স্বাস্থ্য বা রিপোর্ট সম্পর্কে আর কোনো বিষয় জানতে চাইলে আমাকে বলতে পারেন! 😊"
                 )
             else:
                 answer = (
-                    "আপনার আপলোডকৃত রেকর্ডে এই তথ্যটি পাওয়া যায়নি। অনুগ্রহ করে আপনার ডাক্তারের সাথে পরামর্শ করুন।"
-                    if lang == 'bn' else
-                    "This information was not found in your uploaded records. Please consult your doctor."
+                    f"Thank you for reaching out {user.full_name}! 😊 While there isn't a specific record uploaded for this topic in your vault yet, I'm here as your personal health assistant to share wellness tips, explain medical concepts, and support your daily health journey."
+                    if is_english else
+                    f"ধন্যবাদ আপনার বার্তার জন্য {user.full_name}! 😊 আপনার রেকর্ডে এই বিষয়ে সরাসরি কোনো নথি আপলোড করা নেই, তবে সাধারণ স্বাস্থ্যকর জীবনযাত্রা ও সচেতনতার জন্য আমি আপনার পাশে আছি। কোনো নির্দিষ্ট শারীরিক অসুস্থতা বা চিকিৎসার প্রয়োজনে আপনার ডাক্তারের পরামর্শ নিন।"
                 )
 
-        # 5. Persist user and assistant messages
+        # 6. Persist user and assistant messages
         AIMessage.objects.create(conversation=conversation, sender=AIMessage.Sender.USER, content=question)
         ai_msg = AIMessage.objects.create(
             conversation=conversation,

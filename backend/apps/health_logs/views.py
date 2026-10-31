@@ -130,14 +130,31 @@ class VitalsSummaryView(APIView):
         latest_bp = bp_qs.order_by('-recorded_at').first()
         latest_weight = weight_qs.order_by('-recorded_at').first()
 
-        # 7-day glucose average
-        seven_days_ago = timezone.now() - timedelta(days=7)
-        recent_glucose = glucose_qs.filter(recorded_at__gte=seven_days_ago)
+        # 90-day physiological averages
+        now = timezone.now()
+        ninety_days_ago = now - timedelta(days=90)
+        thirty_days_ago = now - timedelta(days=30)
+        from django.db.models import Avg
+
+        # Glucose 90-day average
+        glucose_90d = glucose_qs.filter(recorded_at__gte=ninety_days_ago)
         avg_glucose = None
-        if recent_glucose.exists():
-            from django.db.models import Avg
-            avg = recent_glucose.aggregate(avg=Avg('glucose_value_mmol'))['avg']
+        if glucose_90d.exists():
+            avg = glucose_90d.aggregate(avg=Avg('glucose_value_mmol'))['avg']
             avg_glucose = round(float(avg), 1) if avg else None
+
+        # BP 90-day average
+        bp_90d = bp_qs.filter(recorded_at__gte=ninety_days_ago)
+        avg_systolic = None
+        avg_diastolic = None
+        if bp_90d.exists():
+            bp_agg = bp_90d.aggregate(avg_sys=Avg('systolic_mmHg'), avg_dia=Avg('diastolic_mmHg'))
+            avg_systolic = round(float(bp_agg['avg_sys']), 0) if bp_agg['avg_sys'] else None
+            avg_diastolic = round(float(bp_agg['avg_dia']), 0) if bp_agg['avg_dia'] else None
+            if avg_systolic:
+                avg_systolic = int(avg_systolic)
+            if avg_diastolic:
+                avg_diastolic = int(avg_diastolic)
 
         data = {
             "latest_glucose": BloodGlucoseLogSerializer(latest_glucose).data if latest_glucose else None,
@@ -149,13 +166,13 @@ class VitalsSummaryView(APIView):
             "glucose": {
                 "latest": BloodGlucoseLogSerializer(latest_glucose).data if latest_glucose else None,
                 "avg_90_days": avg_glucose,
-                "danger_count_30_days": alert_qs.count(),
+                "danger_count_30_days": alert_qs.filter(alert_type__in=['HYPOGLYCEMIA_DANGER', 'HYPERGLYCEMIA_ALERT'], created_at__gte=thirty_days_ago).count(),
             },
             "blood_pressure": {
                 "latest": BloodPressureLogSerializer(latest_bp).data if latest_bp else None,
-                "avg_systolic_90_days": None,
-                "avg_diastolic_90_days": None,
-                "crisis_count_30_days": 0,
+                "avg_systolic_90_days": avg_systolic,
+                "avg_diastolic_90_days": avg_diastolic,
+                "crisis_count_30_days": alert_qs.filter(alert_type__in=['HYPERTENSIVE_CRISIS', 'HYPOTENSION_SHOCK'], created_at__gte=thirty_days_ago).count(),
             },
             "weight": {
                 "latest": WeightLogSerializer(latest_weight).data if latest_weight else None,

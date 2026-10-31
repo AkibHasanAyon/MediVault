@@ -116,6 +116,7 @@ class MedicalDocumentDetailSerializer(serializers.ModelSerializer):
 class MedicalDocumentTimelineSerializer(serializers.ModelSerializer):
     """Lightweight serializer for rapid chronological timeline feed."""
     file_url = serializers.SerializerMethodField()
+    extracted_entities = DocumentEntitySerializer(many=True, read_only=True)
     medication_count = serializers.SerializerMethodField()
     lab_test_count = serializers.SerializerMethodField()
     diagnosis_count = serializers.SerializerMethodField()
@@ -134,6 +135,7 @@ class MedicalDocumentTimelineSerializer(serializers.ModelSerializer):
             'issuing_clinic_name',
             'processing_status',
             'user_confirmed',
+            'extracted_entities',
             'medication_count',
             'lab_test_count',
             'diagnosis_count',
@@ -157,16 +159,22 @@ class MedicalDocumentTimelineSerializer(serializers.ModelSerializer):
 
 
 class DocumentReviewItemSerializer(serializers.Serializer):
-    id = serializers.UUIDField(required=False)
+    id = serializers.UUIDField(required=False, allow_null=True)
     entity_type = serializers.ChoiceField(choices=DocumentEntity.EntityType.choices)
     entity_name = serializers.CharField(max_length=255)
-    entity_value = serializers.CharField(max_length=255, allow_blank=True, required=False)
-    unit = serializers.CharField(max_length=50, allow_blank=True, required=False)
-    reference_range = serializers.CharField(max_length=100, allow_blank=True, required=False)
+    entity_value = serializers.CharField(allow_blank=True, required=False, default="")
+    unit = serializers.CharField(max_length=50, allow_blank=True, required=False, default="")
+    reference_range = serializers.CharField(allow_blank=True, required=False, default="")
     is_abnormal = serializers.BooleanField(default=False)
+    raw_snippet = serializers.CharField(allow_blank=True, required=False, default="")
 
 
 class DocumentReviewSerializer(serializers.Serializer):
-    """Serializer for patient confirming / correcting extracted entities."""
-    entities = DocumentReviewItemSerializer(many=True, required=True)
+    """Serializer for patient confirming / correcting document metadata and extracted entities."""
+    title = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    document_date = serializers.DateField(required=False, allow_null=True)
+    document_type = serializers.ChoiceField(choices=MedicalDocument.DocType.choices, required=False)
+    issuing_doctor_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    issuing_clinic_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    entities = DocumentReviewItemSerializer(many=True, required=False, default=list)
 

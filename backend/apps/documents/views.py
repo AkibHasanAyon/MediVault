@@ -12,6 +12,7 @@ from .serializers import (
     DocumentReviewSerializer,
 )
 from .tasks import process_document_ocr_task
+from .utils import merge_files_to_pdf
 from apps.common.permissions import IsPatient, IsOwnerOrSharedDoctor
 
 class MedicalDocumentViewSet(viewsets.ModelViewSet):
@@ -50,7 +51,7 @@ class MedicalDocumentViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         summary="Upload Medical Document",
-        description="Ingests a medical document (JPEG, PNG, WebP, PDF up to 10MB) and triggers background OCR and clinical entity extraction.",
+        description="Ingests single or multiple medical documents/images (JPEG, PNG, WebP, PDF, HEIC up to 10MB) and triggers background OCR and clinical entity extraction.",
         responses={202: MedicalDocumentDetailSerializer}
     )
     def create(self, request, *args, **kwargs):
@@ -60,6 +61,67 @@ class MedicalDocumentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
+        uploaded_files = request.FILES.getlist('files') or request.FILES.getlist('file')
+        combine_param = str(request.data.get('combine', request.data.get('merge', 'true'))).lower() in ('true', '1', 'yes')
+
+        # Handle multiple files upload
+        if len(uploaded_files) > 1:
+            if combine_param:
+                # Merge multi-page photos/images into a single unified multi-page PDF document
+                import os
+                first_name = os.path.splitext(uploaded_files[0].name)[0]
+                merged_file = merge_files_to_pdf(uploaded_files, base_name=f"{first_name}_combined")
+
+                data = request.data.copy()
+                data['file'] = merged_file
+                serializer = self.get_serializer(data=data, context={'request': request})
+                serializer.is_valid(raise_exception=True)
+                doc = serializer.save()
+
+                process_document_ocr_task.delay(str(doc.id))
+
+                return Response(
+                    {
+                        "success": True,
+                        "message": f"{len(uploaded_files)} images merged into a unified document for OCR & entity extraction.",
+                        "data": {
+                            "document_id": str(doc.id),
+                            "status": doc.processing_status,
+                            "document_type": doc.document_type,
+                            "document_date": str(doc.document_date),
+                            "file_url": request.build_absolute_uri(doc.file.url) if doc.file else None
+                        }
+                    },
+                    status=status.HTTP_202_ACCEPTED
+                )
+            else:
+                # Batch upload as distinct individual documents
+                created_docs = []
+                for f in uploaded_files:
+                    data = request.data.copy()
+                    data['file'] = f
+                    serializer = self.get_serializer(data=data, context={'request': request})
+                    serializer.is_valid(raise_exception=True)
+                    doc = serializer.save()
+                    process_document_ocr_task.delay(str(doc.id))
+                    created_docs.append({
+                        "document_id": str(doc.id),
+                        "status": doc.processing_status,
+                        "document_type": doc.document_type,
+                        "document_date": str(doc.document_date),
+                        "file_url": request.build_absolute_uri(doc.file.url) if doc.file else None
+                    })
+
+                return Response(
+                    {
+                        "success": True,
+                        "message": f"{len(created_docs)} documents accepted for background OCR and entity extraction.",
+                        "data": created_docs
+                    },
+                    status=status.HTTP_202_ACCEPTED
+                )
+
+        # Single file upload
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         doc = serializer.save()
@@ -126,23 +188,48 @@ class MedicalDocumentViewSet(viewsets.ModelViewSet):
         doc = self.get_object()
         serializer = DocumentReviewSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
 
-        entities_payload = serializer.validated_data['entities']
+        # 1. Update document metadata if provided
+        update_fields = ['user_confirmed']
+        if 'title' in data and data['title']:
+            doc.title = data['title']
+            update_fields.append('title')
+        if 'document_date' in data and data['document_date']:
+            doc.document_date = data['document_date']
+            update_fields.append('document_date')
+        if 'document_type' in data and data['document_type']:
+            doc.document_type = data['document_type']
+            update_fields.append('document_type')
+        if 'issuing_doctor_name' in data:
+            doc.issuing_doctor_name = data['issuing_doctor_name']
+            update_fields.append('issuing_doctor_name')
+        if 'issuing_clinic_name' in data:
+            doc.issuing_clinic_name = data['issuing_clinic_name']
+            update_fields.append('issuing_clinic_name')
 
-        # Replace or update entities with user-confirmed provenance
+        doc.user_confirmed = True
+        doc.save(update_fields=list(set(update_fields)))
+
+        # 2. Update entities & delete removed entities
+        entities_payload = data.get('entities', [])
+        kept_ids = []
         for item in entities_payload:
             entity_id = item.get('id')
             if entity_id:
                 DocumentEntity.objects.filter(id=entity_id, document=doc).update(
+                    entity_type=item['entity_type'],
                     entity_name=item['entity_name'],
                     entity_value=item.get('entity_value', ''),
                     unit=item.get('unit', ''),
                     reference_range=item.get('reference_range', ''),
                     is_abnormal=item.get('is_abnormal', False),
+                    raw_snippet=item.get('raw_snippet', ''),
                     provenance=DocumentEntity.Provenance.PATIENT_CONFIRMED
                 )
+                kept_ids.append(entity_id)
             else:
-                DocumentEntity.objects.create(
+                new_entity = DocumentEntity.objects.create(
                     document=doc,
                     entity_type=item['entity_type'],
                     entity_name=item['entity_name'],
@@ -150,17 +237,20 @@ class MedicalDocumentViewSet(viewsets.ModelViewSet):
                     unit=item.get('unit', ''),
                     reference_range=item.get('reference_range', ''),
                     is_abnormal=item.get('is_abnormal', False),
+                    raw_snippet=item.get('raw_snippet', ''),
                     provenance=DocumentEntity.Provenance.PATIENT_CONFIRMED
                 )
+                kept_ids.append(new_entity.id)
 
-        doc.user_confirmed = True
-        doc.save(update_fields=['user_confirmed'])
+        # Remove entities deleted by user in frontend review
+        if entities_payload is not None:
+            doc.extracted_entities.exclude(id__in=kept_ids).delete()
 
         detail_serializer = MedicalDocumentDetailSerializer(doc, context={'request': request})
         return Response(
             {
                 "success": True,
-                "message": "Extraction confirmed and verified by patient.",
+                "message": "Extraction and document details confirmed and updated.",
                 "data": detail_serializer.data
             },
             status=status.HTTP_200_OK

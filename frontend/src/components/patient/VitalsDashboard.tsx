@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { Activity, Plus, Heart, Scale } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+  ReferenceLine,
+} from 'recharts';
+import { Activity, Plus, Heart, Scale, Layers } from 'lucide-react';
 import { vitalsApi, VitalsSummary, GlucoseLog, BloodPressureLog, WeightLog } from '../../api/vitals';
 import { Modal } from '../common/Modal';
 
@@ -10,16 +20,79 @@ interface VitalsDashboardProps {
 }
 
 interface TrendPoint {
+  id: string;
   date: string;
+  time?: string;
+  fullDate: string;
+  rawTimestamp: number;
   glucose?: number;
+  glucoseContext?: string;
   systolic?: number;
   diastolic?: number;
+  pulse?: number;
   weight?: number;
 }
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload || !payload.length) return null;
+  const point = payload[0]?.payload as TrendPoint;
+
+  return (
+    <div className="bg-slate-900/95 backdrop-blur-xs text-white p-3 rounded-xl shadow-xl border border-slate-700 text-xs min-w-[190px] space-y-1.5">
+      <div className="font-bold border-b border-slate-700/80 pb-1 flex items-center justify-between text-slate-300">
+        <span>{point?.fullDate || label}</span>
+        {point?.time && <span className="text-[10px] text-slate-400 font-normal">{point.time}</span>}
+      </div>
+
+      {point?.glucose !== undefined && (
+        <div className="flex items-center justify-between text-teal-300">
+          <span className="flex items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-teal-400" />
+            <span>Glucose{point.glucoseContext ? ` (${point.glucoseContext})` : ''}:</span>
+          </span>
+          <span className="font-mono font-bold">{point.glucose} mmol/L</span>
+        </div>
+      )}
+
+      {point?.systolic !== undefined && (
+        <div className="flex items-center justify-between text-rose-300">
+          <span className="flex items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-rose-400" />
+            <span>Blood Pressure:</span>
+          </span>
+          <span className="font-mono font-bold">
+            {point.systolic}/{point.diastolic ?? '--'} mmHg
+          </span>
+        </div>
+      )}
+
+      {point?.pulse !== undefined && (
+        <div className="flex items-center justify-between text-pink-300">
+          <span className="flex items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-pink-400" />
+            <span>Pulse:</span>
+          </span>
+          <span className="font-mono font-bold">{point.pulse} bpm</span>
+        </div>
+      )}
+
+      {point?.weight !== undefined && (
+        <div className="flex items-center justify-between text-sky-300">
+          <span className="flex items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-sky-400" />
+            <span>Weight:</span>
+          </span>
+          <span className="font-mono font-bold">{point.weight} kg</span>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRefresh }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [vitalType, setVitalType] = useState<'GLUCOSE' | 'BP' | 'WEIGHT'>('GLUCOSE');
+  const [activeChartTab, setActiveChartTab] = useState<'ALL' | 'GLUCOSE' | 'BP' | 'WEIGHT'>('ALL');
   const [trendData, setTrendData] = useState<TrendPoint[]>([]);
 
   // Form states
@@ -36,36 +109,80 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
   const fetchTrendData = async () => {
     try {
       const [glucoseRes, bpRes, weightRes] = await Promise.all([
-        vitalsApi.getGlucoseLogs(10).catch(() => [] as GlucoseLog[]),
-        vitalsApi.getBPLogs(10).catch(() => [] as BloodPressureLog[]),
-        vitalsApi.getWeightLogs(10).catch(() => [] as WeightLog[]),
+        vitalsApi.getGlucoseLogs(20).catch(() => [] as GlucoseLog[]),
+        vitalsApi.getBPLogs(20).catch(() => [] as BloodPressureLog[]),
+        vitalsApi.getWeightLogs(20).catch(() => [] as WeightLog[]),
       ]);
 
-      const dateMap = new Map<string, TrendPoint>();
+      const timelineMap = new Map<string, TrendPoint>();
 
       (glucoseRes || []).forEach((g) => {
-        const d = new Date(g.recorded_at).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
-        const existing = dateMap.get(d) || { date: d };
-        existing.glucose = g.glucose_value_mmol;
-        dateMap.set(d, existing);
+        const dt = new Date(g.recorded_at);
+        const dateKey = dt.toISOString().slice(0, 16);
+        const dateLabel = dt.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
+        const timeLabel = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        const existing = timelineMap.get(dateKey) || {
+          id: dateKey,
+          date: dateLabel,
+          time: timeLabel,
+          fullDate: dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+          rawTimestamp: dt.getTime(),
+        };
+        existing.glucose = typeof g.glucose_value_mmol === 'number' ? g.glucose_value_mmol : parseFloat(String(g.glucose_value_mmol));
+        existing.glucoseContext = g.context;
+        timelineMap.set(dateKey, existing);
       });
 
       (bpRes || []).forEach((b) => {
-        const d = new Date(b.recorded_at).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
-        const existing = dateMap.get(d) || { date: d };
+        const dt = new Date(b.recorded_at);
+        const dateKey = dt.toISOString().slice(0, 16);
+        const dateLabel = dt.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
+        const timeLabel = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        const existing = timelineMap.get(dateKey) || {
+          id: dateKey,
+          date: dateLabel,
+          time: timeLabel,
+          fullDate: dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+          rawTimestamp: dt.getTime(),
+        };
         existing.systolic = b.systolic_mmHg;
         existing.diastolic = b.diastolic_mmHg;
-        dateMap.set(d, existing);
+        existing.pulse = b.pulse_bpm;
+        timelineMap.set(dateKey, existing);
       });
 
       (weightRes || []).forEach((w) => {
-        const d = new Date(w.recorded_at).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
-        const existing = dateMap.get(d) || { date: d };
+        const dt = new Date(w.recorded_at);
+        const dateKey = dt.toISOString().slice(0, 16);
+        const dateLabel = dt.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
+        const timeLabel = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        const existing = timelineMap.get(dateKey) || {
+          id: dateKey,
+          date: dateLabel,
+          time: timeLabel,
+          fullDate: dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+          rawTimestamp: dt.getTime(),
+        };
         existing.weight = typeof w.weight_kg === 'number' ? w.weight_kg : parseFloat(String(w.weight_kg));
-        dateMap.set(d, existing);
+        timelineMap.set(dateKey, existing);
       });
 
-      const points = Array.from(dateMap.values());
+      const points = Array.from(timelineMap.values()).sort((a, b) => a.rawTimestamp - b.rawTimestamp);
+
+      // If multiple readings occur on the same day, append time to date label so X-axis shows distinct ticks
+      const dayCounts: Record<string, number> = {};
+      points.forEach((p) => {
+        dayCounts[p.date] = (dayCounts[p.date] || 0) + 1;
+      });
+      points.forEach((p) => {
+        if (dayCounts[p.date] > 1 && p.time) {
+          p.date = `${p.date} ${p.time}`;
+        }
+      });
+
       setTrendData(points);
     } catch {
       setTrendData([]);
@@ -235,8 +352,74 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
         </div>
       </div>
 
+      {/* Chart Filter Tabs & Legend Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3 pt-2 border-t border-slate-100">
+        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setActiveChartTab('ALL')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
+              activeChartTab === 'ALL'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5 text-slate-500" />
+            <span>All Trends (Dual Axis)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveChartTab('GLUCOSE')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
+              activeChartTab === 'GLUCOSE'
+                ? 'bg-white text-teal-800 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5 text-medivault-primary" />
+            <span>Blood Glucose</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveChartTab('BP')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
+              activeChartTab === 'BP'
+                ? 'bg-white text-rose-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Heart className="w-3.5 h-3.5 text-rose-500" />
+            <span>Blood Pressure</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveChartTab('WEIGHT')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
+              activeChartTab === 'WEIGHT'
+                ? 'bg-white text-sky-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Scale className="w-3.5 h-3.5 text-sky-600" />
+            <span>Weight</span>
+          </button>
+        </div>
+
+        {trendData.length > 0 && (
+          <div className="text-[11px] text-slate-400 font-medium flex items-center space-x-2">
+            <span>{trendData.length} {trendData.length === 1 ? 'record' : 'records'} logged</span>
+            {activeChartTab === 'ALL' && (
+              <span className="text-teal-700 font-semibold">• Left: BP & Weight | Right: Glucose</span>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Trend Graph or Empty State */}
-      <div className="h-64 w-full">
+      <div className="h-72 w-full">
         {trendData.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-xl text-center p-6 bg-slate-50/50">
             <Activity className="w-8 h-8 text-slate-300 mb-2" />
@@ -247,41 +430,189 @@ export const VitalsDashboard: React.FC<VitalsDashboardProps> = ({ summary, onRef
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trendData}>
+            <LineChart data={trendData} margin={{ top: 10, right: activeChartTab === 'ALL' ? 25 : 15, left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-              <XAxis dataKey="date" stroke="#94A3B8" fontSize={12} tickLine={false} />
-              <YAxis stroke="#94A3B8" fontSize={12} tickLine={false} domain={[0, 'auto']} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1E293B', borderRadius: '8px', color: '#FFF', border: 'none' }}
-                labelStyle={{ fontWeight: 'bold', marginBottom: '4px' }}
+              <XAxis
+                dataKey="date"
+                stroke="#94A3B8"
+                fontSize={11}
+                tickLine={false}
+                padding={{ left: 35, right: 35 }}
               />
-              <Line
-                type="monotone"
-                dataKey="glucose"
-                stroke="#087E8B"
-                strokeWidth={3}
-                dot={{ r: 4 }}
-                name="Glucose (mmol/L)"
-                connectNulls
+              <Tooltip content={<CustomTooltip />} />
+              <Legend
+                verticalAlign="top"
+                height={32}
+                iconType="circle"
+                wrapperStyle={{ fontSize: '11px', fontWeight: 600, paddingBottom: '8px' }}
               />
-              <Line
-                type="monotone"
-                dataKey="systolic"
-                stroke="#E76F51"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                name="Systolic (mmHg)"
-                connectNulls
-              />
-              <Line
-                type="monotone"
-                dataKey="weight"
-                stroke="#0284C7"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                name="Weight (kg)"
-                connectNulls
-              />
+
+              {activeChartTab === 'ALL' && (
+                <>
+                  {/* Left Axis for BP & Weight */}
+                  <YAxis
+                    yAxisId="left"
+                    stroke="#94A3B8"
+                    fontSize={11}
+                    tickLine={false}
+                    domain={[40, 'auto']}
+                    tickFormatter={(v) => `${v}`}
+                    label={{ value: 'BP / Weight (mmHg / kg)', angle: -90, position: 'insideLeft', style: { fontSize: 10, fill: '#94A3B8' } }}
+                  />
+                  {/* Right Axis for Glucose */}
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    stroke="#087E8B"
+                    fontSize={11}
+                    tickLine={false}
+                    domain={[0, 16]}
+                    tickFormatter={(v) => `${v}`}
+                    label={{ value: 'Glucose (mmol/L)', angle: 90, position: 'insideRight', style: { fontSize: 10, fill: '#087E8B' } }}
+                  />
+
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="glucose"
+                    stroke="#087E8B"
+                    strokeWidth={3}
+                    dot={{ r: 5, fill: '#087E8B', stroke: '#fff', strokeWidth: 2 }}
+                    activeDot={{ r: 7 }}
+                    name="Blood Glucose (mmol/L)"
+                    connectNulls
+                  />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="systolic"
+                    stroke="#E76F51"
+                    strokeWidth={2.5}
+                    dot={{ r: 4, fill: '#E76F51', stroke: '#fff', strokeWidth: 2 }}
+                    activeDot={{ r: 6 }}
+                    name="Systolic BP (mmHg)"
+                    connectNulls
+                  />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="diastolic"
+                    stroke="#F4A261"
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                    dot={{ r: 4, fill: '#F4A261', stroke: '#fff', strokeWidth: 1.5 }}
+                    activeDot={{ r: 6 }}
+                    name="Diastolic BP (mmHg)"
+                    connectNulls
+                  />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="weight"
+                    stroke="#0284C7"
+                    strokeWidth={2}
+                    dot={{ r: 4, fill: '#0284C7', stroke: '#fff', strokeWidth: 2 }}
+                    activeDot={{ r: 6 }}
+                    name="Weight (kg)"
+                    connectNulls
+                  />
+                </>
+              )}
+
+              {activeChartTab === 'GLUCOSE' && (
+                <>
+                  <YAxis
+                    stroke="#087E8B"
+                    fontSize={11}
+                    tickLine={false}
+                    domain={[0, 16]}
+                    tickFormatter={(v) => `${v} mmol`}
+                  />
+                  <ReferenceLine y={7.0} stroke="#10B981" strokeDasharray="3 3" label={{ value: 'Fasting Upper (7.0)', position: 'insideTopLeft', fill: '#10B981', fontSize: 10 }} />
+                  <ReferenceLine y={10.0} stroke="#F59E0B" strokeDasharray="3 3" label={{ value: 'Post-Meal Target (10.0)', position: 'insideTopLeft', fill: '#F59E0B', fontSize: 10 }} />
+                  <ReferenceLine y={4.0} stroke="#3B82F6" strokeDasharray="3 3" label={{ value: 'Fasting Lower (4.0)', position: 'insideBottomLeft', fill: '#3B82F6', fontSize: 10 }} />
+
+                  <Line
+                    type="monotone"
+                    dataKey="glucose"
+                    stroke="#087E8B"
+                    strokeWidth={3}
+                    dot={{ r: 6, fill: '#087E8B', stroke: '#fff', strokeWidth: 2 }}
+                    activeDot={{ r: 8 }}
+                    name="Blood Glucose (mmol/L)"
+                    connectNulls
+                  />
+                </>
+              )}
+
+              {activeChartTab === 'BP' && (
+                <>
+                  <YAxis
+                    stroke="#E76F51"
+                    fontSize={11}
+                    tickLine={false}
+                    domain={[40, 180]}
+                    tickFormatter={(v) => `${v} mmHg`}
+                  />
+                  <ReferenceLine y={120} stroke="#10B981" strokeDasharray="3 3" label={{ value: 'Normal Systolic (120)', position: 'insideTopLeft', fill: '#10B981', fontSize: 10 }} />
+                  <ReferenceLine y={80} stroke="#10B981" strokeDasharray="3 3" label={{ value: 'Normal Diastolic (80)', position: 'insideBottomLeft', fill: '#10B981', fontSize: 10 }} />
+
+                  <Line
+                    type="monotone"
+                    dataKey="systolic"
+                    stroke="#E76F51"
+                    strokeWidth={3}
+                    dot={{ r: 5, fill: '#E76F51', stroke: '#fff', strokeWidth: 2 }}
+                    activeDot={{ r: 7 }}
+                    name="Systolic (mmHg)"
+                    connectNulls
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="diastolic"
+                    stroke="#F4A261"
+                    strokeWidth={2.5}
+                    strokeDasharray="4 4"
+                    dot={{ r: 5, fill: '#F4A261', stroke: '#fff', strokeWidth: 1.5 }}
+                    activeDot={{ r: 7 }}
+                    name="Diastolic (mmHg)"
+                    connectNulls
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="pulse"
+                    stroke="#EC4899"
+                    strokeWidth={2}
+                    strokeDasharray="2 2"
+                    dot={{ r: 4, fill: '#EC4899', stroke: '#fff', strokeWidth: 1 }}
+                    activeDot={{ r: 6 }}
+                    name="Pulse (bpm)"
+                    connectNulls
+                  />
+                </>
+              )}
+
+              {activeChartTab === 'WEIGHT' && (
+                <>
+                  <YAxis
+                    stroke="#0284C7"
+                    fontSize={11}
+                    tickLine={false}
+                    domain={['dataMin - 5', 'dataMax + 5']}
+                    tickFormatter={(v) => `${v} kg`}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="weight"
+                    stroke="#0284C7"
+                    strokeWidth={3}
+                    dot={{ r: 6, fill: '#0284C7', stroke: '#fff', strokeWidth: 2 }}
+                    activeDot={{ r: 8 }}
+                    name="Body Weight (kg)"
+                    connectNulls
+                  />
+                </>
+              )}
             </LineChart>
           </ResponsiveContainer>
         )}
