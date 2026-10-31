@@ -11,7 +11,7 @@ from .serializers import (
     MedicalDocumentTimelineSerializer,
     DocumentReviewSerializer,
 )
-from .tasks import process_document_ocr_task
+from .tasks import process_document_ocr_task, dispatch_document_processing
 from .utils import merge_files_to_pdf
 from apps.common.permissions import IsPatient, IsOwnerOrSharedDoctor
 
@@ -78,7 +78,7 @@ class MedicalDocumentViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
                 doc = serializer.save()
 
-                process_document_ocr_task.delay(str(doc.id))
+                dispatch_document_processing(str(doc.id))
 
                 return Response(
                     {
@@ -103,7 +103,7 @@ class MedicalDocumentViewSet(viewsets.ModelViewSet):
                     serializer = self.get_serializer(data=data, context={'request': request})
                     serializer.is_valid(raise_exception=True)
                     doc = serializer.save()
-                    process_document_ocr_task.delay(str(doc.id))
+                    dispatch_document_processing(str(doc.id))
                     created_docs.append({
                         "document_id": str(doc.id),
                         "status": doc.processing_status,
@@ -126,8 +126,8 @@ class MedicalDocumentViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         doc = serializer.save()
 
-        # Dispatch async Celery OCR task
-        process_document_ocr_task.delay(str(doc.id))
+        # Dispatch async background OCR task
+        dispatch_document_processing(str(doc.id))
 
         return Response(
             {
@@ -278,4 +278,25 @@ class MedicalDocumentViewSet(viewsets.ModelViewSet):
             pass
 
         return Response({"success": True, "message": "Document marked as verified."})
+
+    @extend_schema(
+        summary="Retry Document OCR & AI Pipeline",
+        description="Re-triggers background OCR and clinical entity extraction for a pending or failed document.",
+        responses={200: OpenApiResponse(description="Processing restarted")}
+    )
+    @action(detail=True, methods=['post'], url_path='retry')
+    def retry(self, request, pk=None):
+        doc = self.get_object()
+        doc.processing_status = MedicalDocument.ProcessingStatus.PENDING
+        doc.error_message = ""
+        doc.save(update_fields=['processing_status', 'error_message'])
+        dispatch_document_processing(str(doc.id))
+        return Response({
+            "success": True,
+            "message": "Document re-queued for background processing.",
+            "data": {
+                "document_id": str(doc.id),
+                "status": doc.processing_status,
+            }
+        }, status=status.HTTP_200_OK)
 

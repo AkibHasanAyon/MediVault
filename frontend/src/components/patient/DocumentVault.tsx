@@ -26,6 +26,9 @@ import {
   Files,
   FileImage,
   RefreshCw,
+  Loader2,
+  Clock,
+  ArrowRight,
 } from 'lucide-react';
 import { MedicalDocument, DocumentEntity, documentsApi } from '../../api/documents';
 import { Modal } from '../common/Modal';
@@ -46,6 +49,29 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({ documents, onRefre
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgressMsg, setUploadProgressMsg] = useState('');
+  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
+  const [isRetryingId, setIsRetryingId] = useState<string | null>(null);
+
+  // Active documents undergoing background processing
+  const activeProcessingDocs = useMemo(() => {
+    return documents.filter(
+      (d) =>
+        d.processing_status === 'PENDING' ||
+        d.processing_status === 'PROCESSING_OCR' ||
+        d.processing_status === 'EXTRACTING_AI'
+    );
+  }, [documents]);
+
+  // Auto-poll every 2.5s while any document is being processed in background
+  React.useEffect(() => {
+    if (activeProcessingDocs.length === 0) return;
+
+    const intervalId = setInterval(() => {
+      onRefresh();
+    }, 2500);
+
+    return () => clearInterval(intervalId);
+  }, [activeProcessingDocs.length, onRefresh]);
 
   // Editing state for selected document
   const [isEditing, setIsEditing] = useState(false);
@@ -114,9 +140,9 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({ documents, onRefre
     setUploadProgressMsg(
       files.length > 1
         ? combineFiles
-          ? `Merging ${files.length} images into unified document...`
+          ? `Uploading and merging ${files.length} images into unified document...`
           : `Uploading ${files.length} documents...`
-        : 'Uploading and processing document...'
+        : 'Uploading document to secure vault...'
     );
 
     const formData = new FormData();
@@ -133,12 +159,30 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({ documents, onRefre
       await documentsApi.uploadDocument(formData);
       setIsUploadOpen(false);
       setFiles([]);
+      setUploadNotice(
+        files.length > 1 && combineFiles
+          ? `Document (${files.length} pages) uploaded! MediVault AI optical analysis is running in the background.`
+          : 'Document uploaded! MediVault AI optical analysis is running in the background.'
+      );
+      setTimeout(() => setUploadNotice(null), 9000);
       onRefresh();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Upload failed. Please check file format and try again.');
     } finally {
       setIsUploading(false);
       setUploadProgressMsg('');
+    }
+  };
+
+  const handleRetry = async (docId: string) => {
+    setIsRetryingId(docId);
+    try {
+      await documentsApi.retryDocument(docId);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to restart processing. Please try again.');
+    } finally {
+      setIsRetryingId(null);
     }
   };
 
@@ -319,6 +363,95 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({ documents, onRefre
         </button>
       </div>
 
+      {/* Upload Toast Banner */}
+      {uploadNotice && (
+        <div className="mb-4 p-3.5 bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200 rounded-xl flex items-center justify-between text-xs text-teal-900 shadow-xs">
+          <div className="flex items-center space-x-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="font-semibold">{uploadNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setUploadNotice(null)}
+            className="p-1 text-teal-600 hover:text-teal-800 rounded transition"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Live Background Processing Tracker */}
+      {activeProcessingDocs.length > 0 && (
+        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-teal-50/80 via-sky-50/80 to-indigo-50/80 border border-teal-200/80 shadow-xs">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center space-x-3.5">
+              <div className="w-10 h-10 rounded-xl bg-white border border-teal-200 flex items-center justify-center text-medivault-primary shadow-xs shrink-0">
+                <RefreshCw className="w-5 h-5 animate-spin text-medivault-primary" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                    Background OCR & AI Processing ({activeProcessingDocs.length} {activeProcessingDocs.length === 1 ? 'document' : 'documents'})
+                  </h4>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800">
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal-600 mr-1 animate-pulse" />
+                    Live
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  {activeProcessingDocs.some((d) => d.processing_status === 'EXTRACTING_AI')
+                    ? 'AI Clinical Engine: Extracting laboratory biomarkers, reference ranges & medications...'
+                    : activeProcessingDocs.some((d) => d.processing_status === 'PROCESSING_OCR')
+                    ? 'Optical Character Recognition (OCR): Scanning document pages and extracting text...'
+                    : 'Queued in background. Preparing optical recognition engine...'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2 shrink-0">
+              <span className="text-[11px] font-semibold text-teal-700 bg-white/90 border border-teal-200 px-3 py-1 rounded-xl shadow-xs flex items-center space-x-1.5">
+                <Loader2 className="w-3 h-3 animate-spin text-teal-600" />
+                <span>Auto-refreshing</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Processing Stages Progress Bar */}
+          <div className="mt-3.5 pt-3 border-t border-teal-200/50 flex items-center justify-between text-[11px] font-medium text-slate-500">
+            <div className="flex items-center space-x-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="text-slate-700 font-semibold">1. Uploaded</span>
+            </div>
+            <div className="flex-1 mx-3 h-1.5 bg-teal-200/50 rounded-full overflow-hidden">
+              <div
+                className={`h-full bg-gradient-to-r from-teal-500 to-indigo-600 rounded-full transition-all duration-700 ${
+                  activeProcessingDocs.some((d) => d.processing_status === 'EXTRACTING_AI')
+                    ? 'w-4/5'
+                    : 'w-2/5'
+                }`}
+              />
+            </div>
+            <div className="flex items-center space-x-1.5">
+              {activeProcessingDocs.some((d) => d.processing_status === 'EXTRACTING_AI') ? (
+                <>
+                  <Bot className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
+                  <span className="text-indigo-700 font-bold">2. AI Entity Extraction</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 text-teal-600 animate-spin" />
+                  <span className="text-teal-700 font-bold">2. OCR Scanning</span>
+                </>
+              )}
+            </div>
+            <div className="flex-1 mx-3 h-1.5 bg-slate-200 rounded-full" />
+            <div className="flex items-center space-x-1.5 text-slate-400">
+              <Check className="w-3.5 h-3.5" />
+              <span>3. Review & Verify</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Document List */}
       <div className="space-y-3">
         {documents.length === 0 ? (
@@ -344,6 +477,13 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({ documents, onRefre
           documents.map((doc) => {
             const badge = getDocTypeBadge(doc.document_type);
             const isConfirmed = doc.is_patient_confirmed || doc.user_confirmed;
+            const isProcessing =
+              doc.processing_status === 'PENDING' ||
+              doc.processing_status === 'PROCESSING_OCR' ||
+              doc.processing_status === 'EXTRACTING_AI';
+            const isFailed = doc.processing_status === 'FAILED';
+            const isCompleted = doc.processing_status === 'COMPLETED';
+
             const totalEntities =
               (doc.extracted_entities?.length || 0) ||
               ((doc.medication_count || 0) + (doc.lab_test_count || 0) + (doc.diagnosis_count || 0));
@@ -351,12 +491,38 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({ documents, onRefre
             return (
               <div
                 key={doc.id}
-                className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-teal-200 hover:bg-slate-50/50 transition cursor-pointer"
-                onClick={() => handleOpenDoc(doc)}
+                className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border transition gap-3 ${
+                  isProcessing
+                    ? 'border-teal-200 bg-teal-50/20'
+                    : isFailed
+                    ? 'border-rose-200 bg-rose-50/20'
+                    : !isConfirmed && isCompleted
+                    ? 'border-emerald-200 bg-emerald-50/10 hover:bg-emerald-50/20 cursor-pointer'
+                    : 'border-slate-100 hover:border-teal-200 hover:bg-slate-50/50 cursor-pointer'
+                }`}
+                onClick={() => {
+                  if (!isProcessing) handleOpenDoc(doc);
+                }}
               >
                 <div className="flex items-center space-x-3.5">
-                  <div className="w-11 h-11 rounded-xl bg-teal-50 border border-teal-100 flex items-center justify-center text-medivault-primary shrink-0">
-                    <FileText className="w-5 h-5" />
+                  <div
+                    className={`w-11 h-11 rounded-xl border flex items-center justify-center shrink-0 ${
+                      isProcessing
+                        ? 'bg-sky-50 border-sky-200 text-sky-600'
+                        : isFailed
+                        ? 'bg-rose-50 border-rose-200 text-rose-600'
+                        : !isConfirmed && isCompleted
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                        : 'bg-teal-50 border-teal-100 text-medivault-primary'
+                    }`}
+                  >
+                    {isProcessing ? (
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                    ) : isFailed ? (
+                      <AlertTriangle className="w-5 h-5" />
+                    ) : (
+                      <FileText className="w-5 h-5" />
+                    )}
                   </div>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -364,12 +530,45 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({ documents, onRefre
                       <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${badge.color}`}>
                         {badge.label}
                       </span>
+
+                      {/* Real-time Status Badges */}
+                      {doc.processing_status === 'PENDING' && (
+                        <span className="flex items-center space-x-1 text-[10px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-bold">
+                          <Clock className="w-3 h-3 animate-pulse" />
+                          <span>Queued in Background</span>
+                        </span>
+                      )}
+                      {doc.processing_status === 'PROCESSING_OCR' && (
+                        <span className="flex items-center space-x-1 text-[10px] text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full font-bold">
+                          <RefreshCw className="w-3 h-3 animate-spin text-sky-600" />
+                          <span>Scanning OCR...</span>
+                        </span>
+                      )}
+                      {doc.processing_status === 'EXTRACTING_AI' && (
+                        <span className="flex items-center space-x-1 text-[10px] text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full font-bold">
+                          <Sparkles className="w-3 h-3 text-indigo-600 animate-pulse" />
+                          <span>AI Extracting Entities...</span>
+                        </span>
+                      )}
+                      {isFailed && (
+                        <span className="flex items-center space-x-1 text-[10px] text-rose-800 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full font-bold">
+                          <AlertTriangle className="w-3 h-3" />
+                          <span>Processing Failed</span>
+                        </span>
+                      )}
+                      {isCompleted && !isConfirmed && (
+                        <span className="flex items-center space-x-1 text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-full font-extrabold animate-pulse">
+                          <Sparkles className="w-3 h-3 text-emerald-600" />
+                          <span>Ready to Verify</span>
+                        </span>
+                      )}
                       {isConfirmed && (
                         <span className="flex items-center space-x-0.5 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">
                           <CheckCircle2 className="w-3 h-3" />
                           <span>Verified</span>
                         </span>
                       )}
+
                       {totalEntities > 0 && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold border border-slate-200">
                           {totalEntities} clinical {totalEntities === 1 ? 'item' : 'items'}
@@ -399,21 +598,60 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({ documents, onRefre
                           </span>
                         </>
                       )}
+                      {isFailed && doc.error_message && (
+                        <>
+                          <span>•</span>
+                          <span className="text-rose-600 font-medium truncate max-w-xs">
+                            {doc.error_message}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleOpenDoc(doc);
-                    }}
-                    className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 hover:bg-white hover:border-slate-300 transition flex items-center space-x-1"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-slate-500" />
-                    <span>Review & Edit</span>
-                  </button>
+                <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+                  {isProcessing ? (
+                    <div className="px-3.5 py-1.5 rounded-lg bg-teal-50 border border-teal-200 text-teal-800 text-xs font-bold flex items-center space-x-1.5 shadow-2xs">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600" />
+                      <span>Processing in background...</span>
+                    </div>
+                  ) : isFailed ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRetry(doc.id);
+                      }}
+                      disabled={isRetryingId === doc.id}
+                      className="px-3.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition flex items-center space-x-1.5 disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isRetryingId === doc.id ? 'animate-spin' : ''}`} />
+                      <span>{isRetryingId === doc.id ? 'Retrying...' : 'Retry Processing'}</span>
+                    </button>
+                  ) : isCompleted && !isConfirmed ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenDoc(doc);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-xs font-bold transition shadow-sm flex items-center space-x-1.5"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
+                      <span>Verify Data ({totalEntities})</span>
+                      <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenDoc(doc);
+                      }}
+                      className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 hover:bg-white hover:border-slate-300 transition flex items-center space-x-1"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Review & Edit</span>
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -627,6 +865,33 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({ documents, onRefre
       >
         {selectedDoc && (
           <div className="space-y-5">
+            {/* Direct Verification Call-to-Action Banner */}
+            {!selectedDoc.user_confirmed && !selectedDoc.is_patient_confirmed && (
+              <div className="p-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 border border-emerald-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center space-x-3 text-emerald-950">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-bold text-emerald-900">
+                      Step 3: Verify Extracted Clinical Findings
+                    </h5>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Review the laboratory measurements, reference ranges, and medications below. Click <strong>Confirm as Accurate</strong> to verify or <strong>Edit Information</strong> to refine.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleQuickConfirm(selectedDoc.id)}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold shrink-0 transition shadow-sm flex items-center space-x-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Confirm as Accurate</span>
+                </button>
+              </div>
+            )}
+
             {/* Top Toolbar */}
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200">

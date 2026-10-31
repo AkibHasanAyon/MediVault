@@ -29,6 +29,7 @@ export interface MedicalDocument {
   raw_ocr_text?: string;
   ocr_raw_text?: string;
   processing_status: 'PENDING' | 'PROCESSING_OCR' | 'EXTRACTING_AI' | 'COMPLETED' | 'FAILED' | 'UPLOADED' | 'EXTRACTION_COMPLETE';
+  error_message?: string;
   user_confirmed?: boolean;
   is_patient_confirmed?: boolean;
   extracted_entities?: DocumentEntity[];
@@ -83,6 +84,11 @@ export const documentsApi = {
 
   confirmDocument: async (id: string) => {
     const { data } = await apiClient.post(`/documents/${id}/confirm/`);
+    return data;
+  },
+
+  retryDocument: async (id: string) => {
+    const { data } = await apiClient.post(`/documents/${id}/retry/`);
     return data;
   },
 
